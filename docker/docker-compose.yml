@@ -1,0 +1,108 @@
+# Local development stack for FinVerse Phase 1 (docs/19-implementation-roadmap.md).
+# Run from the repo root: docker compose -f docker/docker-compose.yml up
+#
+# Only Postgres, Redis, and the two Phase 1 services are here. The frontend
+# runs outside Docker via `npm run dev` (docs/18-development-workflow.md §7) —
+# a hot-reloading dev server gains nothing from containerization at this stage.
+# Observability (Jaeger/Prometheus/Grafana/Loki) is added in Phase 5, not here
+# (docs/19-implementation-roadmap.md Phase 5) — this compose file grows with
+# the roadmap rather than front-loading infrastructure nothing uses yet.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: finverse
+      POSTGRES_PASSWORD: finverse
+      POSTGRES_DB: finverse
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finverse"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  auth-service:
+    build:
+      context: ..
+      dockerfile: services/auth-service/Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      PORT: "8081"
+      AUTH_DATABASE_URL: postgres://finverse:finverse@postgres:5432/auth_db?sslmode=disable
+      AUTH_JWT_PRIVATE_KEY_PATH: /keys/auth-jwt-private.pem
+      AUTH_JWT_KID: auth-dev-key-1
+      AUTH_JWT_ISSUER: https://auth.finverse.local
+      AUTH_JWT_AUDIENCE: finverse-api
+      FRONTEND_BASE_URL: http://localhost:5173
+      LOG_LEVEL: info
+      ENVIRONMENT: development
+    volumes:
+      - auth_keys:/keys
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8081/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  customer-service:
+    build:
+      context: ..
+      dockerfile: services/customer-service/Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      PORT: "8082"
+      CUSTOMER_DATABASE_URL: postgres://finverse:finverse@postgres:5432/customer_db?sslmode=disable
+      AUTH_JWKS_URL: http://auth-service:8081/.well-known/jwks.json
+      AUTH_JWT_ISSUER: https://auth.finverse.local
+      AUTH_JWT_AUDIENCE: finverse-api
+      # Dev-only fixed key so encrypted PAN data survives a container restart
+      # instead of becoming unreadable under a freshly-generated one each time
+      # (internal/service/pan_crypto.go) — not a real secret, this is fake
+      # local seed data; staging/prod source this from Secrets Manager
+      # (docs/11-security-standards.md §3), never from compose.
+      CUSTOMER_PAN_ENCRYPTION_KEY: "GUNNDvPYbDaG2TManiQSN19tnV3GFjTrDONfaUDSFbE="
+      DOCUMENTS_STORAGE_PATH: /data/documents
+      AUTO_APPROVE_KYC: "true"
+      LOG_LEVEL: info
+      ENVIRONMENT: development
+    volumes:
+      - customer_documents:/data/documents
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8082/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  auth_keys:
+  customer_documents:

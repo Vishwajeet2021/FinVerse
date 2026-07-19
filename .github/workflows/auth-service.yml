@@ -1,0 +1,45 @@
+name: auth-service
+
+on:
+  pull_request:
+    paths:
+      - "services/auth-service/**"
+      - "shared/go/**"
+      - ".github/workflows/auth-service.yml"
+  push:
+    branches: [main]
+    paths:
+      - "services/auth-service/**"
+      - "shared/go/**"
+
+defaults:
+  run:
+    working-directory: services/auth-service
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
+      # docs/15-cicd-pipeline.md §3: lint failure blocks merge, no exceptions.
+      - name: Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: services/auth-service
+
+      - name: Vet
+        run: go vet ./...
+
+      # docs/17-testing-strategy.md §2: these are unit tests against in-memory
+      # fakes, not a real database — no service containers needed here.
+      - name: Test
+        run: go test ./... -coverprofile=coverage.out
+
+      - name: Build
+        run: go build ./...
