@@ -1,0 +1,74 @@
+package postgres
+
+import (
+	"context"
+	"encoding/json"
+	"time"
+
+	"github.com/finverse/shared/eventbus"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
+)
+
+// OutboxRelay is the "relay process" described in
+// docs/05-system-architecture.md §7: it polls for outbox rows the request
+// path committed but hasn't published yet, publishes them, and marks them
+// published. Running this as a separate poll loop (rather than publishing
+// inline in the request handler) is what makes the outbox pattern actually
+// solve the dual-write problem — the DB commit and the publish are two
+// independent steps, and a crash between them just means the relay
+// retries on its next poll, never a lost or duplicated commit.
+type OutboxRelay struct {
+	db        *gorm.DB
+	publisher *eventbus.Publisher
+	logger    *zap.Logger
+	interval  time.Duration
+}
+
+func NewOutboxRelay(db *gorm.DB, publisher *eventbus.Publisher, logger *zap.Logger) *OutboxRelay {
+	return &OutboxRelay{db: db, publisher: publisher, logger: logger, interval: 500 * time.Millisecond}
+}
+
+// Run polls until ctx is cancelled. Meant to run for the service's lifetime
+// in its own goroutine (cmd/server/main.go).
+func (r *OutboxRelay) Run(ctx context.Context) {
+	ticker := time.NewTicker(r.interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := r.relayOnce(ctx); err != nil {
+				r.logger.Error("outbox relay pass failed", zap.Error(err))
+			}
+		}
+	}
+}
+
+func (r *OutboxRelay) relayOnce(ctx context.Context) error {
+	var rows []outboxModel
+	if err := r.db.WithContext(ctx).Where("published_at IS NULL").Order("created_at").Limit(50).Find(&rows).Error; err != nil {
+		return err
+	}
+
+	for _, row := range rows {
+		var data any
+		if err := json.Unmarshal(row.Payload, &data); err != nil {
+			r.logger.Error("outbox row has unparseable payload, skipping", zap.String("id", row.ID), zap.Error(err))
+			continue
+		}
+
+		if err := r.publisher.Publish(ctx, "transaction-service", row.EventType, "", data); err != nil {
+			r.logger.Error("publishing outbox event", zap.String("id", row.ID), zap.String("event_type", row.EventType), zap.Error(err))
+			continue // left unpublished; retried next pass
+		}
+
+		now := time.Now()
+		if err := r.db.WithContext(ctx).Model(&outboxModel{}).Where("id = ?", row.ID).Update("published_at", now).Error; err != nil {
+			r.logger.Error("marking outbox row published", zap.String("id", row.ID), zap.Error(err))
+		}
+	}
+	return nil
+}

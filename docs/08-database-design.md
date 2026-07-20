@@ -111,6 +111,19 @@ CREATE TABLE outbox (
 ```
 A relay process (polling or CDC via Debezium — see `05-system-architecture.md §7`) publishes unpublished rows to EventBridge and marks `published_at`.
 
+FR-TXN-5's daily closing (§7 of `03-functional-requirements.md`) snapshots every participant's balance as of a point in time:
+
+```sql
+CREATE TABLE daily_closing_snapshots (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    participant_id UUID NOT NULL,
+    balance_minor  BIGINT NOT NULL,
+    currency       CHAR(3) NOT NULL DEFAULT 'INR',
+    as_of          TIMESTAMPTZ NOT NULL,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
 ## 5. Account Service
 
 ```sql
@@ -138,6 +151,24 @@ CREATE TABLE balance_projection (
     available_balance_minor BIGINT NOT NULL DEFAULT 0,
     last_transaction_id     UUID,
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Every service that consumes TransactionPosted owns one of these (Wallet
+-- Service's is identical) — added during Phase 2 implementation. Redis
+-- Streams consumer groups are at-least-once delivery; without this table a
+-- redelivered event would double-apply its balance delta. See
+-- NFR-DATA-2/NFR-SCALE-2 in `04-non-functional-requirements.md`.
+CREATE TABLE processed_events (
+    event_id     UUID PRIMARY KEY,
+    processed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE outbox (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_type    VARCHAR(64) NOT NULL,
+    payload       JSONB NOT NULL,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    published_at  TIMESTAMPTZ
 );
 ```
 `balance_projection` is additionally cached in Redis as `balance:{account_id}` with a short TTL + explicit invalidation on `TransactionPosted` consumption — this is the concrete mechanism behind NFR-PERF-1.
@@ -252,10 +283,24 @@ CREATE TABLE payments (
     status          VARCHAR(16) NOT NULL DEFAULT 'INITIATED'
                     CHECK (status IN ('INITIATED','PROCESSING','COMPLETED','FAILED','REVERSED')),
     transaction_id  UUID,  -- set once Transaction Service confirms posting
+    failure_reason  TEXT,  -- added during Phase 2 implementation: FAILED payments need a reason to show the customer
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (from_account_id, idempotency_key)
 );
 
+-- Transactional outbox for PaymentInitiated/PaymentCompleted/PaymentFailed
+-- (docs/05-system-architecture.md §7) — same shape as every other service's
+-- outbox table; added during Phase 2 implementation, not in the original sketch.
+CREATE TABLE outbox (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_type    VARCHAR(64) NOT NULL,
+    payload       JSONB NOT NULL,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    published_at  TIMESTAMPTZ
+);
+
+-- standing_instructions is Phase 3 scope (docs/19-implementation-roadmap.md) —
+-- not created by Phase 2's migration; kept here as the target shape.
 CREATE TABLE standing_instructions (
     id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     from_account_id UUID NOT NULL,
@@ -385,10 +430,48 @@ Indices: `customers` (name, PAN-masked, tier), `accounts` (account number, holde
 - Migrations are forward-only in shared environments (staging/prod); a bad migration is fixed with a new forward migration, not a manual rollback against a live database.
 - No migration may be applied to staging/prod outside CI/CD (`15-cicd-pipeline.md §Migration Gate`).
 
-## 16. Indexing baseline
+## 16. Wallet Service
+
+Missing from the original sketch (§2's storage table said "same pattern as Account" but never got a full schema) — added during Phase 2 implementation, per `06-domain-driven-design.md §2.4` and `07-microservice-specifications.md §5`.
+
+```sql
+CREATE TABLE wallets (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_id         UUID NOT NULL UNIQUE,  -- exactly one wallet per customer (FR-WAL-1)
+    funding_account_id  UUID NOT NULL,          -- reference to Account Service, not a FK (different DB)
+    status              VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','CLOSED')),
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- CQRS read-side projection, rebuilt from Transaction Service's TransactionPosted events
+CREATE TABLE balance_projection (
+    wallet_id           UUID PRIMARY KEY REFERENCES wallets(id),
+    balance_minor       BIGINT NOT NULL DEFAULT 0,
+    last_transaction_id UUID,
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Same idempotent-consumer purpose as Account Service's table (§5) — a
+-- single TransactionPosted event can carry two legs this service owns (both
+-- sides of a wallet-to-wallet transfer), applied together under one dedupe check.
+CREATE TABLE processed_events (
+    event_id     UUID PRIMARY KEY,
+    processed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE outbox (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_type    VARCHAR(64) NOT NULL,
+    payload       JSONB NOT NULL,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    published_at  TIMESTAMPTZ
+);
+```
+
+## 17. Indexing baseline
 
 Every table gets an index on: its foreign-key-shaped reference columns used in lookups (e.g. `accounts.customer_id`, `legs.transaction_id`), any column used in a `WHERE` on a hot path (e.g. `payments.idempotency_key`, `refresh_tokens.token_hash`), and any column used for admin/audit filtering (e.g. `audit_records.actor_id`, `audit_records.occurred_at`).
 
-## 17. Traceability
+## 18. Traceability
 
 Every table here backs a `FR-*` requirement in `03-functional-requirements.md` and belongs to the service defined in `07-microservice-specifications.md`. Request/response shapes that expose these fields externally are defined in `09-api-standards.md`.

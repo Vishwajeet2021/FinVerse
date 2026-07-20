@@ -39,6 +39,24 @@ func (h *Handler) resolveOwnCustomer(c *gin.Context) (*domain.Customer, bool) {
 	return customer, true
 }
 
+// GetKYCTierByUserID is an internal, service-to-service endpoint (no JWT
+// middleware — internal network trust, the same posture as Transaction
+// Service's plaintext gRPC per docs/11-security-standards.md §7) that lets
+// another service resolve a user's live KYC tier without requiring that
+// user's own JWT. It exists specifically because Auth Service's JWT
+// kyc_tier claim is a documented Phase 1/2 stand-in that's always 0 (see
+// services/auth-service/internal/service/login.go's comment) — Account
+// Service's Tier-1+ gate for FR-ACC-1 calls this instead of trusting that
+// claim. Returns 404 if the user has no customer profile yet.
+func (h *Handler) GetKYCTierByUserID(c *gin.Context) {
+	customer, err := h.customers.GetProfileByUserID(c.Request.Context(), c.Param("userId"))
+	if err != nil {
+		writeDomainError(c, err)
+		return
+	}
+	apiresponse.OK(c, gin.H{"kycTier": customer.KYCTier, "kycStatus": customer.KYCStatus})
+}
+
 // CreateProfile implements FR-CUST-1.
 func (h *Handler) CreateProfile(c *gin.Context) {
 	var req createProfileRequest

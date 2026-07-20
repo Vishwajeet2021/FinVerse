@@ -88,7 +88,7 @@ Each service publishes an OpenAPI 3.1 spec at `services/<service>/api/openapi.ya
 
 ## 3. Internal gRPC conventions
 
-Reserved for the specific calls identified in `05-system-architecture.md §4` (Payment↔Fraud, Payment↔Transaction, Wallet↔Transaction, Loan↔Payment, Loan↔Fraud) — not a default for all internal calls.
+Reserved for the specific calls identified in `05-system-architecture.md §4` (Payment↔Fraud, Payment↔Transaction, Wallet↔Transaction, Loan↔Payment, Loan↔Fraud) plus Account↔Transaction (added during Phase 2 implementation: Account Service's statement generation needs the same `GetAccountHistory` call Wallet already uses — one gRPC method serving both callers, rather than standing up a second REST path to identical data) — not a default for all internal calls.
 
 - Proto files live in `shared/proto/<domain>/v1/*.proto`, versioned by directory, generated code checked in per-language.
 - Every RPC takes a request message with an explicit `idempotency_key` field where it triggers a side effect, mirroring §2.6.

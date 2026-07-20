@@ -1,0 +1,84 @@
+// Ledger Service's internal gRPC contract, per docs/09-api-standards.md §3
+// and docs/07-microservice-specifications.md §6. Reserved for the sync calls
+// identified in docs/05-system-architecture.md §4 (Payment/Wallet -> Transaction)
+// — not exposed via the public API Gateway.
+syntax = "proto3";
+
+package ledger.v1;
+
+option go_package = "github.com/finverse/shared/genproto/ledger/v1;ledgerv1";
+
+service LedgerService {
+  // PostTransaction implements FR-TXN-1 to FR-TXN-3: post a balanced set of
+  // legs atomically, idempotent on (source_service, idempotency_key).
+  rpc PostTransaction(PostTransactionRequest) returns (PostTransactionResponse);
+
+  // ReverseTransaction implements FR-TXN-4: a compensating entry, never a delete.
+  rpc ReverseTransaction(ReverseTransactionRequest) returns (ReverseTransactionResponse);
+
+  // GetAccountHistory implements FR-TXN-6: paginated leg history for one participant.
+  rpc GetAccountHistory(GetAccountHistoryRequest) returns (GetAccountHistoryResponse);
+}
+
+enum Direction {
+  DIRECTION_UNSPECIFIED = 0;
+  DIRECTION_DEBIT = 1;
+  DIRECTION_CREDIT = 2;
+}
+
+message Leg {
+  string participant_id = 1;
+  string participant_type = 2; // "ACCOUNT" | "WALLET" | "SUSPENSE"
+  int64 amount_minor = 3;
+  Direction direction = 4;
+  string currency = 5; // ISO 4217, e.g. "INR"
+}
+
+message PostTransactionRequest {
+  string idempotency_key = 1;
+  string source_service = 2;
+  repeated Leg legs = 3;
+}
+
+enum TransactionStatus {
+  TRANSACTION_STATUS_UNSPECIFIED = 0;
+  TRANSACTION_STATUS_POSTED = 1;
+  TRANSACTION_STATUS_REVERSED = 2;
+}
+
+message PostTransactionResponse {
+  string transaction_id = 1;
+  TransactionStatus status = 2;
+}
+
+message ReverseTransactionRequest {
+  string transaction_id = 1;
+  string idempotency_key = 2;
+}
+
+message ReverseTransactionResponse {
+  string reversal_transaction_id = 1;
+}
+
+message HistoryEntry {
+  string transaction_id = 1;
+  string leg_id = 2;
+  int64 amount_minor = 3;
+  Direction direction = 4;
+  string currency = 5;
+  string created_at = 6; // RFC3339
+  string source_service = 7;
+}
+
+message GetAccountHistoryRequest {
+  string participant_id = 1;
+  string from = 2; // RFC3339, optional
+  string to = 3;   // RFC3339, optional
+  int32 limit = 4;
+  string cursor = 5;
+}
+
+message GetAccountHistoryResponse {
+  repeated HistoryEntry entries = 1;
+  string next_cursor = 2;
+}

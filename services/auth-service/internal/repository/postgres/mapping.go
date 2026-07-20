@@ -2,11 +2,28 @@ package postgres
 
 import "github.com/finverse/auth-service/internal/domain"
 
+// emptyToNil/nilToEmpty convert between the domain's plain string (where ""
+// means "not provided") and the model's *string (where nil means SQL NULL) —
+// see models.go's comment on userModel.Phone for why this distinction matters.
+func emptyToNil(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+func nilToEmpty(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
 func toUserModel(u *domain.User) *userModel {
 	return &userModel{
 		ID:               u.ID,
 		Email:            u.Email,
-		Phone:            u.Phone,
+		Phone:            emptyToNil(u.Phone),
 		PasswordHash:     u.PasswordHash,
 		Role:             string(u.Role),
 		EmailVerified:    u.EmailVerified,
@@ -22,7 +39,7 @@ func fromUserModel(m *userModel) *domain.User {
 	return &domain.User{
 		ID:               m.ID,
 		Email:            m.Email,
-		Phone:            m.Phone,
+		Phone:            nilToEmpty(m.Phone),
 		PasswordHash:     m.PasswordHash,
 		Role:             domain.Role(m.Role),
 		EmailVerified:    m.EmailVerified,

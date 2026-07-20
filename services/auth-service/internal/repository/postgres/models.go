@@ -5,7 +5,11 @@ import "time"
 type userModel struct {
 	ID               string     `gorm:"column:id;primaryKey"`
 	Email            string     `gorm:"column:email"`
-	Phone            string     `gorm:"column:phone"`
+	// Phone is a pointer so an omitted phone number stores SQL NULL, not "" —
+	// the column is UNIQUE, and Postgres treats NULL <> NULL (any number of
+	// NULLs are allowed) but "" = "" (a second empty-string phone number
+	// would collide with the first user who omitted theirs).
+	Phone            *string    `gorm:"column:phone"`
 	PasswordHash     string     `gorm:"column:password_hash"`
 	Role             string     `gorm:"column:role"`
 	EmailVerified    bool       `gorm:"column:email_verified"`

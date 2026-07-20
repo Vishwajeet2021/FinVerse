@@ -25,6 +25,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -35,6 +36,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
 
   auth-service:
     build:
@@ -50,7 +52,7 @@ services:
       AUTH_JWT_ISSUER: https://auth.finverse.local
       AUTH_JWT_AUDIENCE: finverse-api
       FRONTEND_BASE_URL: http://localhost:5173
-      LOG_LEVEL: info
+      LOG_LEVEL: debug
       ENVIRONMENT: development
     volumes:
       - auth_keys:/keys
@@ -85,7 +87,7 @@ services:
       CUSTOMER_PAN_ENCRYPTION_KEY: "GUNNDvPYbDaG2TManiQSN19tnV3GFjTrDONfaUDSFbE="
       DOCUMENTS_STORAGE_PATH: /data/documents
       AUTO_APPROVE_KYC: "true"
-      LOG_LEVEL: info
+      LOG_LEVEL: debug
       ENVIRONMENT: development
     volumes:
       - customer_documents:/data/documents
@@ -96,6 +98,138 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8082/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  transaction-service:
+    build:
+      context: ..
+      dockerfile: services/transaction-service/Dockerfile
+    ports:
+      - "8091:8091"
+      - "9091:9091"
+    environment:
+      PORT: "8091"
+      GRPC_PORT: "9091"
+      TRANSACTION_DATABASE_URL: postgres://finverse:finverse@postgres:5432/transaction_db?sslmode=disable
+      REDIS_ADDR: redis:6379
+      LOG_LEVEL: debug
+      ENVIRONMENT: development
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8091/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  account-service:
+    build:
+      context: ..
+      dockerfile: services/account-service/Dockerfile
+    ports:
+      - "8083:8083"
+    environment:
+      PORT: "8083"
+      ACCOUNT_DATABASE_URL: postgres://finverse:finverse@postgres:5432/account_db?sslmode=disable
+      REDIS_ADDR: redis:6379
+      TRANSACTION_SERVICE_GRPC_ADDR: transaction-service:9091
+      CUSTOMER_SERVICE_URL: http://customer-service:8082
+      AUTH_JWKS_URL: http://auth-service:8081/.well-known/jwks.json
+      AUTH_JWT_ISSUER: https://auth.finverse.local
+      AUTH_JWT_AUDIENCE: finverse-api
+      FRONTEND_BASE_URL: http://localhost:5173
+      LOG_LEVEL: debug
+      ENVIRONMENT: development
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      transaction-service:
+        condition: service_healthy
+      customer-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8083/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  wallet-service:
+    build:
+      context: ..
+      dockerfile: services/wallet-service/Dockerfile
+    ports:
+      - "8084:8084"
+    environment:
+      PORT: "8084"
+      WALLET_DATABASE_URL: postgres://finverse:finverse@postgres:5432/wallet_db?sslmode=disable
+      REDIS_ADDR: redis:6379
+      TRANSACTION_SERVICE_GRPC_ADDR: transaction-service:9091
+      AUTH_JWKS_URL: http://auth-service:8081/.well-known/jwks.json
+      AUTH_JWT_ISSUER: https://auth.finverse.local
+      AUTH_JWT_AUDIENCE: finverse-api
+      FRONTEND_BASE_URL: http://localhost:5173
+      LOG_LEVEL: debug
+      ENVIRONMENT: development
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      transaction-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8084/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  payment-service:
+    build:
+      context: ..
+      dockerfile: services/payment-service/Dockerfile
+    ports:
+      - "8085:8085"
+    environment:
+      PORT: "8085"
+      PAYMENT_DATABASE_URL: postgres://finverse:finverse@postgres:5432/payment_db?sslmode=disable
+      REDIS_ADDR: redis:6379
+      TRANSACTION_SERVICE_GRPC_ADDR: transaction-service:9091
+      AUTH_JWKS_URL: http://auth-service:8081/.well-known/jwks.json
+      AUTH_JWT_ISSUER: https://auth.finverse.local
+      AUTH_JWT_AUDIENCE: finverse-api
+      FRONTEND_BASE_URL: http://localhost:5173
+      LOG_LEVEL: debug
+      ENVIRONMENT: development
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      transaction-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8085/health"]
       interval: 5s
       timeout: 5s
       retries: 10

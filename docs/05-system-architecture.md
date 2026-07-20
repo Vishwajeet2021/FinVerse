@@ -171,7 +171,7 @@ graph LR
 | Frontend | SvelteKit, TypeScript, Tailwind, TanStack Query, Chart.js, Socket.io client | UI, data fetching/caching, charts, real-time balance/notification push |
 | API layer | Go, Gin | HTTP handlers, request validation |
 | Internal sync calls | gRPC + protobuf | Low-latency service-to-service calls on the critical path |
-| Async messaging | EventBridge + SQS + DLQ | Domain event distribution, retries, failure isolation |
+| Async messaging | EventBridge + SQS + DLQ in AWS; **Redis Streams locally/pre-Phase-4** behind the same `shared/go/eventbus` interface (`18-development-workflow.md §7`) | Domain event distribution, retries, failure isolation |
 | Persistence | Postgres (per-service), MongoDB (Notification), OpenSearch (Search), ClickHouse (Analytics, later) | Fit-for-purpose storage per bounded context (`08-database-design.md`) |
 | Caching | Redis / ElastiCache | Balance projection cache, rate limiting, fraud velocity counters |
 | Observability | OpenTelemetry, Prometheus, Grafana, Jaeger, Loki | Tracing, metrics, dashboards, logs (`16-observability.md`) |

@@ -10,15 +10,26 @@ import "github.com/finverse/auth-service/internal/domain"
 func scopesForRole(role domain.Role) []string {
 	switch role {
 	case domain.RoleCustomer:
-		return []string{"customers:read", "customers:write"}
+		// accounts:*/wallets:*/payments:* added during Phase 2 implementation
+		// as Account/Wallet/Payment Service shipped — see docs/10-authentication-authorization.md §3.2
+		// for the catalog entry each scope corresponds to.
+		return []string{
+			"customers:read", "customers:write",
+			"accounts:read", "accounts:manage",
+			"wallets:read", "wallets:manage",
+			"payments:read", "payments:write",
+		}
 	case domain.RoleSupport:
-		return []string{"customers:read"}
+		return []string{"customers:read", "accounts:read"}
 	case domain.RoleFraudAnalyst:
 		return []string{"customers:read"}
 	case domain.RoleAuditor:
 		return []string{"customers:read", "audit:read"}
 	case domain.RoleAdmin, domain.RoleSuperAdmin:
-		return []string{"customers:read", "customers:write", "customers:kyc:review"}
+		return []string{
+			"customers:read", "customers:write", "customers:kyc:review",
+			"accounts:read", "accounts:manage",
+		}
 	default:
 		return nil
 	}

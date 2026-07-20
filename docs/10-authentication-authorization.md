@@ -68,6 +68,9 @@ Each refresh call: validate the presented token → issue a new access token **a
 |---|---|
 | `accounts:read` | Read own (customer) or any (internal roles, per row-level rule in §3.3) account |
 | `accounts:manage` | Freeze/unfreeze, open, close |
+| `wallets:read` | Read own wallet balance |
+| `wallets:manage` | Provision a wallet, top up, wallet-to-wallet transfer |
+| `payments:read` | Poll a payment's status |
 | `payments:write` | Initiate a payment/transfer |
 | `cards:manage` | Issue/freeze/block a card |
 | `loans:apply` | Submit a loan application |

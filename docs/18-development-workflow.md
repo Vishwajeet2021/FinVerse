@@ -43,12 +43,12 @@ A PR does not merge with a red CI check, an unresolved review comment, or an una
 
 ## 7. Local development setup
 
-1. `docker compose -f docker/docker-compose.yml up` — brings up every service, Postgres, MongoDB, Redis, OpenSearch, EventBridge-equivalent (LocalStack or a lightweight local event bus stand-in — see note below), Jaeger, Prometheus, Grafana, Loki.
+1. `docker compose -f docker/docker-compose.yml up` — brings up every service built so far, plus their datastores (Postgres per service, Redis — doubling as the local event bus, see note below — and, once the owning service exists, MongoDB/OpenSearch). Jaeger/Prometheus/Grafana/Loki land in Phase 5.
 2. `scripts/seed/seed.sh` — populates realistic fake data (§8 of `17-testing-strategy.md`).
 3. Frontend: `cd frontend && npm install && npm run dev`.
 4. A new engineer (or the developer, returning after time away) should be able to go from clone to a working local stack following only the root `README.md`, with no undocumented tribal-knowledge steps.
 
-**Local AWS-equivalents**: EventBridge/SQS are stood in for locally via LocalStack (or, if that proves too heavy for local dev, a minimal in-process pub/sub substitute behind the same interface used in production — a decision to be finalized in Phase 1 and recorded here once made). S3 is stood in for via LocalStack or MinIO. This keeps local development fully offline-capable (NFR-PORT-1) without requiring real AWS credentials for day-to-day coding.
+**Local AWS-equivalents — decided in Phase 2**: EventBridge/SQS are stood in for locally by **Redis Streams**, not LocalStack. Rationale: Redis is already in the stack (caching, Fraud's velocity counters), a Stream + consumer group maps directly onto the concepts each service actually uses — `XADD` ≈ publish to a bus rule, a consumer group ≈ a per-service SQS queue, `XPENDING`/`XCLAIM` after a timeout ≈ redrive, a dedicated `<stream>:dlq` stream after N delivery attempts ≈ a DLQ — and it avoids running a second heavyweight emulator (LocalStack) purely to approximate a queue. The abstraction lives in `shared/go/eventbus` behind a small `Publisher`/`Consumer` interface, so swapping the implementation for real EventBridge/SQS in `14-aws-infrastructure.md`'s deployed environments is a Phase 4 adapter change, not a rewrite of any service's business logic. S3 is stood in for locally via MinIO once a service needs it (Customer Service's document storage uses a local-disk `Storage` interface instead, per `07-microservice-specifications.md §3` — the same swap-the-adapter pattern). This keeps local development fully offline-capable (NFR-PORT-1) without requiring real AWS credentials for day-to-day coding.
 
 ## 8. Commit and PR hygiene
 

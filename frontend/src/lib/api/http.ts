@@ -73,6 +73,11 @@ export interface RequestOptions {
 	// so their own 401s (e.g. INVALID_CREDENTIALS) never trigger a refresh attempt.
 	auth?: boolean;
 	signal?: AbortSignal;
+	// Extra headers beyond Accept/Content-Type/Authorization — added for
+	// Payment Service's required Idempotency-Key header
+	// (docs/09-api-standards.md §2.6); kept generic rather than a
+	// payments-only param since other services may need custom headers later.
+	headers?: Record<string, string>;
 }
 
 async function parseJsonBody(res: Response): Promise<unknown> {
@@ -100,6 +105,9 @@ async function performFetch(
 	if (options.auth) {
 		const token = getAccessToken();
 		if (token) headers.set('Authorization', `Bearer ${token}`);
+	}
+	if (options.headers) {
+		for (const [key, value] of Object.entries(options.headers)) headers.set(key, value);
 	}
 
 	try {

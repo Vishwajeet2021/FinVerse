@@ -38,7 +38,7 @@ Every service spec below follows the same shape, so switching context between se
 
 - **Purpose**: Owns bank accounts (savings/current/joint/virtual), their limits, freeze state, and the balance *read projection*.
 - **Owns**: Postgres (`accounts`, `account_holders`, `balance_projection`, `interest_schedules`). Does **not** own the ledger of truth — that's Transaction Service.
-- **Key APIs**: `POST /accounts`, `GET /accounts/{id}`, `GET /accounts/{id}/balance`, `POST /accounts/{id}/freeze`, `GET /accounts/{id}/statement`.
+- **Key APIs**: `POST /accounts`, `GET /accounts` (list the caller's own — added during Phase 2 implementation; a customer can hold more than one account and needs a way to discover them), `GET /accounts/{id}`, `GET /accounts/{id}/balance`, `POST /accounts/{id}/freeze`, `GET /accounts/{id}/statement`.
 - **Publishes**: `AccountOpened`, `AccountFrozen`, `AccountUnfrozen`, `InterestAccrued`.
 - **Consumes**: `TransactionPosted` (updates `balance_projection`), `KYCApproved` (raises tier/limits).
 - **Sync dependencies**: Transaction Service, for statement generation (historical leg detail beyond what's projected locally).

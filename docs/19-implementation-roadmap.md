@@ -8,7 +8,7 @@ Status legend: `[ ]` not started, `[~]` in progress, `[x]` done.
 
 ## 2. Phase 1 — Foundation (target: ~3–4 weeks)
 
-**Status as of 2026-07-19: substantially complete, pending a live end-to-end run (Docker Desktop was still initializing at last check) and a first commit/push.**
+**Status as of 2026-07-19: complete, verified live end-to-end, and pushed to GitHub.** Two bugs found only once Phase 2 services actually integrated with these: Auth Service's JWT `kyc_tier` claim is hardcoded to `0` on every login (see the code comment in `services/auth-service/internal/service/login.go`) — harmless in Phase 1 alone since nothing read it yet, but it meant Account Service's Tier-1+ gate (Phase 2) could never pass; fixed by having Account Service call a new internal Customer Service endpoint for a live tier lookup instead of trusting the claim. Also, registering a user with no phone number stored empty string rather than SQL `NULL`, so a second passwordless-phone registration collided on the `phone` UNIQUE constraint — fixed by storing `NULL` for an omitted phone.
 
 **Goal**: a working skeleton — repo, local infra, identity, and a customer profile — end to end.
 
@@ -17,8 +17,8 @@ Status legend: `[ ]` not started, `[~]` in progress, `[x]` done.
 - [x] Auth Service: registration, login, JWT issuance (RS256 + JWKS), refresh rotation with reuse-detection, logout/logout-all, email verification + password reset (FR-AUTH-1 to -3, -6, -8, -10, -12). Refresh token ships as an HttpOnly cookie per `10-authentication-authorization.md §2`, not in the JSON body. MFA/OTP (FR-AUTH-4/5) deferred to Phase 3 as explicitly permitted above. Unit tests pass against in-memory fakes; `go vet`/`golangci-lint` clean.
 - [x] Customer Service: profile creation, basic KYC state machine with dev auto-approve (FR-CUST-1, -3, -5), plus beneficiaries (FR-CUST-4) and document metadata behind a `Storage` interface (local disk in Phase 1, swappable for S3 later) ahead of schedule. PAN is AES-256-GCM field-encrypted per `11-security-standards.md §4`. Unit tests, `go vet`, `golangci-lint` clean. Known gap: FR-CUST-1's "address" field has no column yet in either the doc or the migration — not blocking, tracked here for a future pass.
 - [x] Frontend: SvelteKit skeleton (TypeScript strict, Tailwind, TanStack Query), `/`, `/login`, `/register`, `/verify-email`, `/verify-email-sent`, `/dashboard` — dashboard degrades gracefully if Customer Service is unreachable. Build, `svelte-check`, and lint all clean.
-- [x] CI: lint + unit test GitHub Actions workflows for Auth Service, Customer Service, and the frontend (`15-cicd-pipeline.md §3`), without deploy stages yet — nothing to deploy to yet. Not yet exercised against a live remote (no GitHub remote configured).
-- [~] Basic GitHub repo hygiene: issue templates and PR template done; branch protection on `main` requires a pushed GitHub remote, which doesn't exist yet.
+- [x] CI: lint + unit test GitHub Actions workflows for Auth Service, Customer Service, and the frontend (`15-cicd-pipeline.md §3`), without deploy stages yet — nothing to deploy to yet.
+- [~] Basic GitHub repo hygiene: issue templates, PR template, and the pushed remote are done; branch protection on `main` itself hasn't been configured yet.
 
 **Exit criteria**: a user can register, verify email, log in, and see a profile page, fully locally, with passing CI.
 
@@ -30,13 +30,17 @@ Status legend: `[ ]` not started, `[~]` in progress, `[x]` done.
 
 **Goal**: real money movement, correctly, with a real double-entry ledger.
 
-- [ ] Transaction/Ledger Service: legs/transactions schema with DB-enforced balance invariant, idempotent posting, outbox (FR-TXN-1 to -8). This is the highest-scrutiny work in the whole roadmap — see `06-domain-driven-design.md §1` on why it's a core domain.
-- [ ] Account Service: open account, balance projection (consuming `TransactionPosted`), freeze/unfreeze, statement (FR-ACC-1 to -9).
-- [ ] Wallet Service: top-up, wallet-to-wallet transfer (FR-WAL-1 to -5).
-- [ ] Payment Service: internal transfers end-to-end (simulated rail selection can be a stub returning `INTERNAL` only; full NEFT/RTGS/IMPS/UPI simulation timing can land in Phase 3).
-- [ ] Frontend: dashboard with real balance (via TanStack Query), transfer flow, transaction history list.
-- [ ] Property-based tests for the ledger balance invariant (`17-testing-strategy.md §2`).
-- [ ] Load test #1: concurrent transfer test proving zero balance drift (NFR-SCALE-2, NFR-DATA-3) — even if run manually/locally before full CI/CD load-test automation exists.
+**Status as of 2026-07-19: complete and verified live.** Built directly (not delegated) for the ledger; Account/Wallet/Payment Service builds started as parallel background agents but were interrupted mid-build by a session usage-limit cutoff — their partial output (domain/service layers, mostly with tests already written) was reviewed and judged solid, then completed directly rather than restarted from scratch.
+
+- [x] Transaction/Ledger Service: legs/transactions schema with DB-enforced balance invariant, idempotent posting, outbox (FR-TXN-1 to -8). This is the highest-scrutiny work in the whole roadmap — see `06-domain-driven-design.md §1` on why it's a core domain. Verified with a real Postgres integration test (testcontainers) proving the database itself — not just application code — rejects unbalanced legs and rolls back atomically.
+- [x] Account Service: open account, balance projection (consuming `TransactionPosted`), freeze/unfreeze, statement (FR-ACC-1 to -9). Also shipped: `GET /accounts` (list own — a gap found wiring the frontend, not in the original spec) and a live KYC-tier lookup against Customer Service (Auth's `kyc_tier` JWT claim is hardcoded to 0 in this phase — see Phase 1 note below — so the Tier-1+ gate calls Customer Service directly instead of trusting the claim).
+- [x] Wallet Service: top-up, wallet-to-wallet transfer (FR-WAL-1 to -5).
+- [x] Payment Service: internal transfers end-to-end (simulated rail selection is a stub returning `INTERNAL` only; full NEFT/RTGS/IMPS/UPI simulation timing is Phase 3, as planned).
+- [x] Frontend: dashboard with real balance (via TanStack Query), transfer flow, transaction history list. Wallet Service has no dedicated UI yet (verified via API only) — the roadmap only asked for account balance/transfer/history, so wallet UI is deferred rather than scope-crept in.
+- [x] Property-based tests for the ledger balance invariant (`17-testing-strategy.md §2`) — 500 randomized balanced/perturbed-unbalanced cases, seeded for reproducibility.
+- [x] Load test #1: concurrent transfer test proving zero balance drift (NFR-SCALE-2, NFR-DATA-3) — 20 concurrent transfers fired at the live stack; both accounts' balances and their sum matched the expected values exactly. A larger-scale, automated version of this (not just a 20-request manual burst) is still a good Phase 5 hardening item.
+- [x] **Local event bus decided and built**: Redis Streams, not LocalStack — see `18-development-workflow.md §7` and `05-system-architecture.md §5` for the decision this phase had to make earlier than planned (Account/Wallet's balance projections needed it to exist now, not in Phase 3).
+- [x] **Real bugs found and fixed during integration** (not just unit-tested in isolation): a GORM `Scan`-into-embedded-struct bug that silently zeroed out ledger history query results; two services' first gRPC call to Transaction Service timing out on a cold connection (fixed with eager `conn.Connect()` in all three gRPC clients); registering a second user with no phone number colliding on the `phone` UNIQUE constraint because empty string was stored instead of SQL NULL.
 
 **Exit criteria**: two customers can transfer money to each other; the ledger balances under concurrent load; a statement can be generated.
 

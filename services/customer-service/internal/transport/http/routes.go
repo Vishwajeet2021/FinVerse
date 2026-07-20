@@ -52,6 +52,10 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 	r.GET("/health", HealthHandler)
 	r.GET("/ready", ReadyHandler(deps.DB))
 
+	// Internal, service-to-service only — see GetKYCTierByUserID's comment
+	// in handlers.go. Not routed through the public API Gateway.
+	r.GET("/internal/customers/by-user/:userId/kyc-tier", deps.Handler.GetKYCTierByUserID)
+
 	v1 := r.Group("/api/v1/customers")
 	v1.Use(deps.Verifier.Middleware())
 	{

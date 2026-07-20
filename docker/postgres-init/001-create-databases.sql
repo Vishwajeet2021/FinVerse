@@ -4,3 +4,7 @@
 -- logical database per service in early phases).
 CREATE DATABASE auth_db;
 CREATE DATABASE customer_db;
+CREATE DATABASE transaction_db;
+CREATE DATABASE account_db;
+CREATE DATABASE wallet_db;
+CREATE DATABASE payment_db;
