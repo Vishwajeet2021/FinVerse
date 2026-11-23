@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/finverse/payment-service/internal/domain"
+	"github.com/finverse/shared/telemetry"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -50,6 +51,7 @@ func (r *PaymentRepository) Create(ctx context.Context, payment *domain.Payment)
 		}
 		return fmt.Errorf("inserting payment: %w", err)
 	}
+	paymentsTotal.WithLabelValues("INITIATED").Inc()
 	return nil
 }
 
@@ -58,7 +60,7 @@ func (r *PaymentRepository) InsertOutboxEvent(ctx context.Context, eventType str
 	if err != nil {
 		return fmt.Errorf("marshaling outbox payload: %w", err)
 	}
-	outbox := &outboxModel{ID: uuid.NewString(), EventType: eventType, Payload: payloadJSON, CreatedAt: time.Now()}
+	outbox := &outboxModel{ID: uuid.NewString(), EventType: eventType, Payload: payloadJSON, CreatedAt: time.Now(), TraceParent: telemetry.TraceParent(ctx)}
 	if err := r.db.WithContext(ctx).Create(outbox).Error; err != nil {
 		return fmt.Errorf("inserting standalone outbox event: %w", err)
 	}
@@ -71,7 +73,7 @@ func (r *PaymentRepository) MarkCompletedWithOutbox(ctx context.Context, payment
 		return fmt.Errorf("marshaling outbox payload: %w", err)
 	}
 
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return countOnSuccess("COMPLETED", r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		err := tx.Model(&paymentModel{}).Where("id = ?", paymentID).Updates(map[string]any{
 			"status":         string(domain.StatusCompleted),
 			"transaction_id": transactionID,
@@ -79,12 +81,12 @@ func (r *PaymentRepository) MarkCompletedWithOutbox(ctx context.Context, payment
 		if err != nil {
 			return fmt.Errorf("marking payment completed: %w", err)
 		}
-		outbox := &outboxModel{ID: uuid.NewString(), EventType: eventType, Payload: payloadJSON, CreatedAt: time.Now()}
+		outbox := &outboxModel{ID: uuid.NewString(), EventType: eventType, Payload: payloadJSON, CreatedAt: time.Now(), TraceParent: telemetry.TraceParent(ctx)}
 		if err := tx.Create(outbox).Error; err != nil {
 			return fmt.Errorf("inserting outbox event: %w", err)
 		}
 		return nil
-	})
+	}))
 }
 
 func (r *PaymentRepository) MarkFailedWithOutbox(ctx context.Context, paymentID, reason, eventType string, eventPayload any) error {
@@ -93,7 +95,7 @@ func (r *PaymentRepository) MarkFailedWithOutbox(ctx context.Context, paymentID,
 		return fmt.Errorf("marshaling outbox payload: %w", err)
 	}
 
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return countOnSuccess("FAILED", r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		err := tx.Model(&paymentModel{}).Where("id = ?", paymentID).Updates(map[string]any{
 			"status":         string(domain.StatusFailed),
 			"failure_reason": reason,
@@ -101,10 +103,10 @@ func (r *PaymentRepository) MarkFailedWithOutbox(ctx context.Context, paymentID,
 		if err != nil {
 			return fmt.Errorf("marking payment failed: %w", err)
 		}
-		outbox := &outboxModel{ID: uuid.NewString(), EventType: eventType, Payload: payloadJSON, CreatedAt: time.Now()}
+		outbox := &outboxModel{ID: uuid.NewString(), EventType: eventType, Payload: payloadJSON, CreatedAt: time.Now(), TraceParent: telemetry.TraceParent(ctx)}
 		if err := tx.Create(outbox).Error; err != nil {
 			return fmt.Errorf("inserting outbox event: %w", err)
 		}
 		return nil
-	})
+	}))
 }

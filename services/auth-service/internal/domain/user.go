@@ -34,17 +34,17 @@ const (
 // User is the login identity — distinct from Customer, which lives in
 // Customer Service, per docs/06-domain-driven-design.md §2.1-2.2.
 type User struct {
-	ID                string
-	Email             string
-	Phone             string
-	PasswordHash      string
-	Role              Role
-	EmailVerified     bool
-	Status            UserStatus
-	FailedLoginCount  int
-	LockedUntil       *time.Time
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	ID               string
+	Email            string
+	Phone            string
+	PasswordHash     string
+	Role             Role
+	EmailVerified    bool
+	Status           UserStatus
+	FailedLoginCount int
+	LockedUntil      *time.Time
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 // MaxFailedLoginAttempts and LockoutDuration implement FR-AUTH-9.

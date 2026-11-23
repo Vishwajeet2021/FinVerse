@@ -38,6 +38,7 @@ type outboxModel struct {
 	Payload     []byte     `gorm:"column:payload"`
 	CreatedAt   time.Time  `gorm:"column:created_at"`
 	PublishedAt *time.Time `gorm:"column:published_at"`
+	TraceParent *string    `gorm:"column:traceparent"`
 }
 
 func (outboxModel) TableName() string { return "outbox" }

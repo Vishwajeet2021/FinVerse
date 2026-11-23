@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"github.com/finverse/payment-service/internal/domain"
 )
@@ -44,6 +45,40 @@ type PaymentRepository interface {
 	// payment row is created and before the ledger call, so it has no
 	// terminal status to piggyback on the way Completed/Failed do.
 	InsertOutboxEvent(ctx context.Context, eventType string, payload any) error
+
+	// MarkProcessing moves an accepted async-rail payment to PROCESSING and
+	// records when the rail will clear it.
+	MarkProcessing(ctx context.Context, paymentID string, settleAt time.Time) error
+	// ClaimDueForSettlement atomically leases up to limit PROCESSING payments
+	// whose settle_at has passed (FOR UPDATE SKIP LOCKED, so replicas never
+	// settle the same one) and increments each one's settle_attempts.
+	ClaimDueForSettlement(ctx context.Context, now time.Time, lease time.Duration, limit int) ([]*domain.Payment, error)
+	// ReleaseForRetry makes a leased payment eligible again at retryAt.
+	ReleaseForRetry(ctx context.Context, paymentID string, retryAt time.Time) error
+}
+
+// ScheduleRepository persists scheduled payments and standing instructions
+// (FR-PAY-2, FR-PAY-3). Every Claim* method leases rows with SKIP LOCKED so
+// several replicas can poll safely; execution is additionally idempotent
+// (the payment idempotency key is derived from the schedule), so even a lost
+// lease can never double-pay.
+type ScheduleRepository interface {
+	CreateScheduled(ctx context.Context, sp *domain.ScheduledPayment) error
+	ListScheduled(ctx context.Context, createdBy string, limit int) ([]domain.ScheduledPayment, error)
+	CancelScheduled(ctx context.Context, createdBy, id string) error
+	ClaimDueScheduled(ctx context.Context, now time.Time, lease time.Duration, limit int) ([]domain.ScheduledPayment, error)
+	CompleteScheduled(ctx context.Context, id, paymentID string) error
+	ReleaseScheduled(ctx context.Context, id string, retryAt time.Time) error
+
+	CreateStanding(ctx context.Context, si *domain.StandingInstruction) error
+	ListStanding(ctx context.Context, createdBy string, limit int) ([]domain.StandingInstruction, error)
+	GetStanding(ctx context.Context, createdBy, id string) (*domain.StandingInstruction, error)
+	// SetStandingStatus moves an instruction between ACTIVE/PAUSED/CANCELLED
+	// (and, on resume, to nextRunAt). A CANCELLED instruction is terminal.
+	SetStandingStatus(ctx context.Context, createdBy, id, status string, nextRunAt *time.Time) error
+	ClaimDueStanding(ctx context.Context, now time.Time, lease time.Duration, limit int) ([]domain.StandingInstruction, error)
+	AdvanceStanding(ctx context.Context, id string, nextRunAt time.Time, lastPaymentID string) error
+	ReleaseStanding(ctx context.Context, id string, retryAt time.Time) error
 }
 
 // LedgerClient is the gRPC boundary to Transaction Service
@@ -52,6 +87,16 @@ type PaymentRepository interface {
 // service; faked in tests.
 type LedgerClient interface {
 	PostTransaction(ctx context.Context, idempotencyKey string, legs []LedgerLeg) (transactionID string, err error)
+}
+
+// AccountResolver is the HTTP boundary to Account Service's internal
+// account-number lookup (internal/client/account). This isn't one of the
+// designated gRPC pairs in docs/05-system-architecture.md §4 — it follows
+// the same plain-HTTP, internal-network-trust posture Account Service
+// itself uses to call Customer Service for KYC tier, since it's a one-off
+// lookup, not the money-movement critical path.
+type AccountResolver interface {
+	ResolveAccountID(ctx context.Context, accountNumber string) (string, error)
 }
 
 // LedgerLeg is one leg of a PostTransaction call, in this service's own
@@ -63,4 +108,28 @@ type LedgerLeg struct {
 	AmountMinor     int64
 	Direction       string
 	Currency        string
+}
+
+// FraudVerdict is Fraud Service's answer to CheckTransaction, in this
+// service's vocabulary (internal/client/fraud translates from the proto).
+type FraudVerdict struct {
+	Decision  FraudDecision
+	RiskScore int
+	Rule      string
+	Reason    string // customer-safe
+}
+
+type FraudDecision string
+
+const (
+	FraudAllow  FraudDecision = "ALLOW"
+	FraudReview FraudDecision = "REVIEW" // proceeds; Fraud Service opens a case
+	FraudDeny   FraudDecision = "DENY"
+)
+
+// FraudChecker is the synchronous gRPC boundary to Fraud Service
+// (docs/05-system-architecture.md section 4 and 6.1). An error means the
+// verdict is unknown; InitiatePayment applies its fail-open/closed policy.
+type FraudChecker interface {
+	CheckTransaction(ctx context.Context, paymentID, fromAccountID, toReference string, amountMinor int64, rail, idempotencyKey string) (FraudVerdict, error)
 }

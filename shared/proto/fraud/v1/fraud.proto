@@ -1,0 +1,36 @@
+// Fraud Service's internal gRPC contract, per docs/05-system-architecture.md
+// §4/§6.1 and docs/07-microservice-specifications.md §10. Payment calls
+// CheckTransaction synchronously before posting to the ledger; the whole
+// call has a 80ms P99 budget (NFR-PERF-4), so it must stay Redis-only.
+syntax = "proto3";
+
+package fraud.v1;
+
+option go_package = "github.com/finverse/shared/genproto/fraud/v1;fraudv1";
+
+service FraudService {
+  rpc CheckTransaction(CheckTransactionRequest) returns (CheckTransactionResponse);
+}
+
+message CheckTransactionRequest {
+  string account_id = 1;          // paying account
+  string counterparty_ref = 2;    // recipient account number / reference
+  int64 amount_minor = 3;
+  string rail = 4;
+  string idempotency_key = 5;
+  string payment_id = 6;
+}
+
+enum Verdict {
+  VERDICT_UNSPECIFIED = 0;
+  VERDICT_ALLOW = 1;
+  VERDICT_REVIEW = 2;  // allowed to proceed, but a case is opened for an analyst
+  VERDICT_DENY = 3;
+}
+
+message CheckTransactionResponse {
+  Verdict verdict = 1;
+  int32 risk_score = 2;   // 0-100
+  string rule = 3;        // rule that decided, e.g. "SINGLE_TXN_LIMIT"
+  string reason = 4;      // customer-safe explanation
+}

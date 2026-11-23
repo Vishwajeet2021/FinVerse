@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/finverse/shared/telemetry"
 	"github.com/finverse/transaction-service/internal/domain"
 	"github.com/finverse/transaction-service/internal/service"
 	"github.com/google/uuid"
@@ -48,7 +49,7 @@ func (r *TransactionRepository) CreateWithOutbox(ctx context.Context, txn *domai
 			return fmt.Errorf("inserting legs: %w", err) // includes the balance-invariant trigger failure
 		}
 
-		outbox := &outboxModel{ID: uuid.NewString(), EventType: eventType, Payload: payloadJSON, CreatedAt: time.Now()}
+		outbox := &outboxModel{ID: uuid.NewString(), EventType: eventType, Payload: payloadJSON, CreatedAt: time.Now(), TraceParent: telemetry.TraceParent(ctx)}
 		if err := tx.Create(outbox).Error; err != nil {
 			return fmt.Errorf("inserting outbox event: %w", err)
 		}
@@ -62,7 +63,7 @@ func (r *TransactionRepository) InsertOutboxEvent(ctx context.Context, eventType
 	if err != nil {
 		return fmt.Errorf("marshaling outbox payload: %w", err)
 	}
-	outbox := &outboxModel{ID: uuid.NewString(), EventType: eventType, Payload: payloadJSON, CreatedAt: time.Now()}
+	outbox := &outboxModel{ID: uuid.NewString(), EventType: eventType, Payload: payloadJSON, CreatedAt: time.Now(), TraceParent: telemetry.TraceParent(ctx)}
 	if err := r.db.WithContext(ctx).Create(outbox).Error; err != nil {
 		return fmt.Errorf("inserting standalone outbox event: %w", err)
 	}

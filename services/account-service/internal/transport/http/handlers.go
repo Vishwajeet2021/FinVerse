@@ -37,6 +37,20 @@ func customerIDFromClaims(c *gin.Context) string {
 	return jwtauth.ClaimsFromContext(c).Subject
 }
 
+// ResolveAccountNumber is an internal, service-to-service endpoint (no JWT
+// middleware — internal network trust, the same posture as Customer
+// Service's GetKYCTierByUserID) that lets Payment Service turn the account
+// number a payer actually knows into the internal account ID the ledger's
+// participant_id column requires. Returns 404 if no account has that number.
+func (h *Handler) ResolveAccountNumber(c *gin.Context) {
+	account, err := h.accounts.ResolveAccountNumber(c.Request.Context(), c.Param("accountNumber"))
+	if err != nil {
+		writeDomainError(c, err)
+		return
+	}
+	apiresponse.OK(c, gin.H{"id": account.ID, "status": string(account.Status)})
+}
+
 // OpenAccount implements FR-ACC-1, including the Tier 1+ gate (BR-03). The
 // tier check calls Customer Service directly rather than trusting the JWT's
 // kyc_tier claim — Auth Service always issues that claim as 0
@@ -165,6 +179,21 @@ func (h *Handler) Unfreeze(c *gin.Context) {
 		return
 	}
 	apiresponse.OK(c, gin.H{"frozen": false})
+}
+
+// Close implements FR-ACC-5's terminal transition. Unlike Freeze/Unfreeze,
+// there's no request body -- there's no "reason" or reversible state to
+// capture, only a one-way door gated by domain.ErrAccountHasBalance.
+func (h *Handler) Close(c *gin.Context) {
+	accountID := c.Param("id")
+	if !h.requireOwnership(c, accountID) {
+		return
+	}
+	if err := h.accounts.CloseAccount(c.Request.Context(), accountID); err != nil {
+		writeDomainError(c, err)
+		return
+	}
+	apiresponse.OK(c, gin.H{"closed": true})
 }
 
 func (h *Handler) GetStatement(c *gin.Context) {

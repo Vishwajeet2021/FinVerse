@@ -4,11 +4,11 @@ import "testing"
 
 func TestCheckWithinTierLimits(t *testing.T) {
 	cases := []struct {
-		name        string
-		tier        int
-		dailySoFar  int64
-		proposed    int64
-		wantErr     error
+		name       string
+		tier       int
+		dailySoFar int64
+		proposed   int64
+		wantErr    error
 	}{
 		{"tier 1 within limit", 1, 0, 10_000_00, nil},
 		{"tier 1 exactly at limit", 1, 0, 50_000_00, nil},

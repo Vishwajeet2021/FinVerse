@@ -15,8 +15,9 @@ import (
 	"github.com/finverse/auth-service/internal/repository/postgres"
 	"github.com/finverse/auth-service/internal/service"
 	transporthttp "github.com/finverse/auth-service/internal/transport/http"
-	sharedlogging "github.com/finverse/shared/logging"
 	"github.com/finverse/shared/jwtauth"
+	sharedlogging "github.com/finverse/shared/logging"
+	"github.com/finverse/shared/telemetry"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -33,6 +34,12 @@ func main() {
 		panic(err)
 	}
 	defer func() { _ = logger.Sync() }()
+
+	shutdownTracing, err := telemetry.Init(context.Background(), "auth-service")
+	if err != nil {
+		logger.Fatal("initializing tracing", zap.Error(err))
+	}
+	defer func() { _ = shutdownTracing(context.Background()) }()
 
 	if err := migrate.Up(cfg.DatabaseURL); err != nil {
 		logger.Fatal("applying migrations", zap.Error(err))

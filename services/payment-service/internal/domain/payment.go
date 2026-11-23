@@ -29,9 +29,9 @@ const (
 	StatusReversed   Status = "REVERSED"
 )
 
-// Payment is the aggregate root. Only the INTERNAL rail is implemented in
-// this phase (docs/19-implementation-roadmap.md Phase 2) -- NEFT/RTGS/IMPS/UPI
-// timing simulation is Phase 3.
+// Payment is the aggregate root. INTERNAL settles synchronously; NEFT, RTGS,
+// IMPS and UPI are simulated with rail-specific limits and settlement timing
+// (internal/service/rails.go).
 type Payment struct {
 	ID             string
 	IdempotencyKey string
@@ -43,10 +43,16 @@ type Payment struct {
 	TransactionID  *string
 	FailureReason  *string
 	CreatedAt      time.Time
+	// SettleAt / SettleAttempts are only meaningful for asynchronous rails
+	// (NEFT/RTGS/IMPS/UPI): when the rail clears the payment, and how many
+	// settlement attempts have been made (bounded retry, FR-PAY-8).
+	SettleAt       *time.Time
+	SettleAttempts int
 }
 
 var (
-	ErrPaymentNotFound  = errors.New("payment not found")
-	ErrInvalidAmount    = errors.New("amount must be a positive number of minor units")
-	ErrSameAccount      = errors.New("cannot transfer an account to itself")
+	ErrPaymentNotFound          = errors.New("payment not found")
+	ErrInvalidAmount            = errors.New("amount must be a positive number of minor units")
+	ErrSameAccount              = errors.New("cannot transfer an account to itself")
+	ErrRecipientAccountNotFound = errors.New("no account exists with that account number")
 )

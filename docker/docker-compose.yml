@@ -1,7 +1,7 @@
 # Local development stack for FinVerse Phase 1 (docs/19-implementation-roadmap.md).
 # Run from the repo root: docker compose -f docker/docker-compose.yml up
 #
-# Only Postgres, Redis, and the two Phase 1 services are here. The frontend
+# Postgres, Redis, the Phase 1-3 services, and Jaeger live here. The frontend
 # runs outside Docker via `npm run dev` (docs/18-development-workflow.md §7) —
 # a hot-reloading dev server gains nothing from containerization at this stage.
 # Observability (Jaeger/Prometheus/Grafana/Loki) is added in Phase 5, not here
@@ -54,6 +54,7 @@ services:
       FRONTEND_BASE_URL: http://localhost:5173
       LOG_LEVEL: debug
       ENVIRONMENT: development
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
     volumes:
       - auth_keys:/keys
     depends_on:
@@ -89,6 +90,7 @@ services:
       AUTO_APPROVE_KYC: "true"
       LOG_LEVEL: debug
       ENVIRONMENT: development
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
     volumes:
       - customer_documents:/data/documents
     depends_on:
@@ -118,6 +120,7 @@ services:
       REDIS_ADDR: redis:6379
       LOG_LEVEL: debug
       ENVIRONMENT: development
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
     depends_on:
       postgres:
         condition: service_healthy
@@ -149,6 +152,7 @@ services:
       FRONTEND_BASE_URL: http://localhost:5173
       LOG_LEVEL: debug
       ENVIRONMENT: development
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
     depends_on:
       postgres:
         condition: service_healthy
@@ -185,6 +189,7 @@ services:
       FRONTEND_BASE_URL: http://localhost:5173
       LOG_LEVEL: debug
       ENVIRONMENT: development
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
     depends_on:
       postgres:
         condition: service_healthy
@@ -213,12 +218,17 @@ services:
       PAYMENT_DATABASE_URL: postgres://finverse:finverse@postgres:5432/payment_db?sslmode=disable
       REDIS_ADDR: redis:6379
       TRANSACTION_SERVICE_GRPC_ADDR: transaction-service:9091
+      ACCOUNT_SERVICE_URL: http://account-service:8083
+      FRAUD_SERVICE_GRPC_ADDR: fraud-service:9092
+      NEFT_BATCH_SECONDS: "10"   # short batches so local demos do not wait 30s
+      RAIL_FAILURE_RATE: "0"
       AUTH_JWKS_URL: http://auth-service:8081/.well-known/jwks.json
       AUTH_JWT_ISSUER: https://auth.finverse.local
       AUTH_JWT_AUDIENCE: finverse-api
       FRONTEND_BASE_URL: http://localhost:5173
       LOG_LEVEL: debug
       ENVIRONMENT: development
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
     depends_on:
       postgres:
         condition: service_healthy
@@ -228,6 +238,10 @@ services:
         condition: service_healthy
       transaction-service:
         condition: service_healthy
+      account-service:
+        condition: service_healthy
+      fraud-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8085/health"]
       interval: 5s
@@ -235,6 +249,145 @@ services:
       retries: 10
       start_period: 10s
     restart: unless-stopped
+
+  # Phase 3: Notification Service consumes the event catalog with retry + DLQ
+  # (docs/07-microservice-specifications.md §11, docs/20-ai-dlc-phase3.md).
+  notification-service:
+    build:
+      context: ..
+      dockerfile: services/notification-service/Dockerfile
+    ports:
+      - "8086:8086"
+    environment:
+      PORT: "8086"
+      NOTIFICATION_DATABASE_URL: postgres://finverse:finverse@postgres:5432/notification_db?sslmode=disable
+      REDIS_ADDR: redis:6379
+      AUTH_JWKS_URL: http://auth-service:8081/.well-known/jwks.json
+      AUTH_JWT_ISSUER: https://auth.finverse.local
+      AUTH_JWT_AUDIENCE: finverse-api
+      FRONTEND_BASE_URL: http://localhost:5173
+      # Short retry schedule so the DLQ path is observable in seconds, not minutes.
+      NOTIFY_MAX_DELIVERIES: "4"
+      NOTIFY_BACKOFF_BASE_MS: "1000"
+      NOTIFY_BACKOFF_MAX_MS: "8000"
+      LOG_LEVEL: debug
+      ENVIRONMENT: development
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8086/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  # Phase 3: Fraud Service - synchronous CheckTransaction gRPC for Payment
+  # (docs/05-system-architecture.md 6.1). Velocity/daily limits are loosened
+  # here so the load test is not rate-limited by its own fraud rules; the
+  # code defaults (10 payments/min, 1,00,000 INR/day) are the product values.
+  fraud-service:
+    build:
+      context: ..
+      dockerfile: services/fraud-service/Dockerfile
+    ports:
+      - "8088:8088"
+      - "9092:9092"
+    environment:
+      PORT: "8088"
+      GRPC_PORT: "9092"
+      FRAUD_DATABASE_URL: postgres://finverse:finverse@postgres:5432/fraud_db?sslmode=disable
+      REDIS_ADDR: redis:6379
+      AUTH_JWKS_URL: http://auth-service:8081/.well-known/jwks.json
+      AUTH_JWT_ISSUER: https://auth.finverse.local
+      AUTH_JWT_AUDIENCE: finverse-api
+      FRONTEND_BASE_URL: http://localhost:5173
+      FRAUD_VELOCITY_MAX_PER_MIN: "100000"
+      FRAUD_DAILY_LIMIT_MINOR: "1000000000000"
+      LOG_LEVEL: debug
+      ENVIRONMENT: development
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8088/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  # Phase 3: Audit Service - append-only record of every catalog event.
+  audit-service:
+    build:
+      context: ..
+      dockerfile: services/audit-service/Dockerfile
+    ports:
+      - "8087:8087"
+    environment:
+      PORT: "8087"
+      AUDIT_DATABASE_URL: postgres://finverse:finverse@postgres:5432/audit_db?sslmode=disable
+      REDIS_ADDR: redis:6379
+      AUTH_JWKS_URL: http://auth-service:8081/.well-known/jwks.json
+      AUTH_JWT_ISSUER: https://auth.finverse.local
+      AUTH_JWT_AUDIENCE: finverse-api
+      FRONTEND_BASE_URL: http://localhost:5173
+      LOG_LEVEL: debug
+      ENVIRONMENT: development
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8087/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  # Phase 5 pulled forward for tracing (NFR-OBS-1): Jaeger UI on :16686,
+  # OTLP/HTTP ingest on :4318. Services never depend on it being up.
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "4318:4318"
+    restart: unless-stopped
+
+  # Load tests: `docker compose --profile loadtest run --rm k6 run /scripts/<file>.js`
+  # (see loadtest/README.md). Not started by a plain `up`.
+  k6:
+    profiles: ["loadtest"]
+    image: grafana/k6:0.54.0
+    volumes:
+      - ../loadtest:/scripts:ro
+    environment:
+      AUTH_URL: http://auth-service:8081
+      CUSTOMER_URL: http://customer-service:8082
+      ACCOUNT_URL: http://account-service:8083
+      PAYMENT_URL: http://payment-service:8085
+      NOTIFICATION_URL: http://notification-service:8086
+    depends_on:
+      - payment-service
+      - notification-service
 
 volumes:
   postgres_data:

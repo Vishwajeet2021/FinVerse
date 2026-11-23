@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/finverse/shared/eventbus"
+	"github.com/finverse/shared/telemetry"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -60,7 +61,7 @@ func (r *OutboxRelay) relayOnce(ctx context.Context) error {
 			continue
 		}
 
-		if err := r.publisher.Publish(ctx, "transaction-service", row.EventType, "", data); err != nil {
+		if err := r.publisher.PublishWithTrace(ctx, "transaction-service", row.EventType, "", telemetry.Str(row.TraceParent), data); err != nil {
 			r.logger.Error("publishing outbox event", zap.String("id", row.ID), zap.String("event_type", row.EventType), zap.Error(err))
 			continue // left unpublished; retried next pass
 		}

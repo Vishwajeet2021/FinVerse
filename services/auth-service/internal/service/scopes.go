@@ -18,17 +18,20 @@ func scopesForRole(role domain.Role) []string {
 			"accounts:read", "accounts:manage",
 			"wallets:read", "wallets:manage",
 			"payments:read", "payments:write",
+			"notifications:read",
 		}
 	case domain.RoleSupport:
 		return []string{"customers:read", "accounts:read"}
 	case domain.RoleFraudAnalyst:
-		return []string{"customers:read"}
+		return []string{"customers:read", "fraud:read", "fraud:resolve"}
 	case domain.RoleAuditor:
 		return []string{"customers:read", "audit:read"}
 	case domain.RoleAdmin, domain.RoleSuperAdmin:
 		return []string{
 			"customers:read", "customers:write", "customers:kyc:review",
 			"accounts:read", "accounts:manage",
+			"notifications:read", "notifications:admin",
+			"audit:read", "fraud:read", "fraud:resolve",
 		}
 	default:
 		return nil

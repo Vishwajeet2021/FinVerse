@@ -5,6 +5,7 @@ import (
 
 	"github.com/finverse/shared/apiresponse"
 	sharedlogging "github.com/finverse/shared/logging"
+	"github.com/finverse/shared/telemetry"
 	"github.com/finverse/transaction-service/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -17,10 +18,12 @@ import (
 // ops/cron use, not from the public internet.
 func NewRouter(ledger *service.LedgerService, db *gorm.DB, logger *zap.Logger) *gin.Engine {
 	r := gin.New()
+	r.Use(telemetry.GinMiddleware("transaction-service"))
 	r.Use(sharedlogging.Recovery(logger))
 	r.Use(sharedlogging.Middleware(logger))
 
 	r.GET("/health", HealthHandler)
+	r.GET("/metrics", telemetry.MetricsHandler())
 	r.GET("/ready", ReadyHandler(db))
 
 	// FR-TXN-5. Triggered manually or by a scheduler in later phases

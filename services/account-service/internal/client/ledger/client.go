@@ -9,6 +9,7 @@ import (
 
 	"github.com/finverse/account-service/internal/service"
 	ledgerv1 "github.com/finverse/shared/genproto/ledger/v1"
+	"github.com/finverse/shared/telemetry"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -30,7 +31,7 @@ type Client struct {
 // block — it just starts the dial in the background so it's warm by the
 // time an actual request needs it.
 func NewClient(addr string) (*Client, error) {
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithStatsHandler(telemetry.GRPCClientStats()))
 	if err != nil {
 		return nil, fmt.Errorf("dialing transaction-service at %s: %w", addr, err)
 	}

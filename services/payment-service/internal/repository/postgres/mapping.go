@@ -14,6 +14,8 @@ func toPaymentModel(p *domain.Payment) *paymentModel {
 		TransactionID:  p.TransactionID,
 		FailureReason:  p.FailureReason,
 		CreatedAt:      p.CreatedAt,
+		SettleAt:       p.SettleAt,
+		SettleAttempts: p.SettleAttempts,
 	}
 }
 
@@ -29,5 +31,7 @@ func fromPaymentModel(m *paymentModel) *domain.Payment {
 		TransactionID:  m.TransactionID,
 		FailureReason:  m.FailureReason,
 		CreatedAt:      m.CreatedAt,
+		SettleAt:       m.SettleAt,
+		SettleAttempts: m.SettleAttempts,
 	}
 }

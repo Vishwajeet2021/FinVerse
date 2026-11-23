@@ -32,7 +32,9 @@ func newFakeTransactionRepository() *fakeTransactionRepository {
 	}
 }
 
-func idemKey(sourceService, idempotencyKey string) string { return sourceService + "|" + idempotencyKey }
+func idemKey(sourceService, idempotencyKey string) string {
+	return sourceService + "|" + idempotencyKey
+}
 
 func (f *fakeTransactionRepository) CreateWithOutbox(_ context.Context, txn *domain.Transaction, eventType string, eventPayload any) error {
 	cp := *txn

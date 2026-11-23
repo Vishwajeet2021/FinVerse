@@ -89,11 +89,11 @@ func (t *Transaction) Validate() error {
 }
 
 var (
-	ErrTooFewLegs         = errors.New("a transaction needs at least two legs")
-	ErrNonPositiveAmount  = errors.New("leg amount must be positive")
-	ErrInvalidDirection   = errors.New("leg direction must be debit or credit")
-	ErrUnbalancedLegs     = errors.New("transaction legs do not sum to zero for at least one currency")
-	ErrIdempotencyReplay  = errors.New("idempotency key already used with a different payload")
+	ErrTooFewLegs          = errors.New("a transaction needs at least two legs")
+	ErrNonPositiveAmount   = errors.New("leg amount must be positive")
+	ErrInvalidDirection    = errors.New("leg direction must be debit or credit")
+	ErrUnbalancedLegs      = errors.New("transaction legs do not sum to zero for at least one currency")
+	ErrIdempotencyReplay   = errors.New("idempotency key already used with a different payload")
 	ErrTransactionNotFound = errors.New("transaction not found")
-	ErrAlreadyReversed    = errors.New("transaction has already been reversed")
+	ErrAlreadyReversed     = errors.New("transaction has already been reversed")
 )

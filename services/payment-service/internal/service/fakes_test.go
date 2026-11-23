@@ -11,9 +11,9 @@ import (
 // Phase 2 services' fakes_test.go pattern -- per docs/17-testing-strategy.md §2.
 
 type fakePaymentRepository struct {
-	byID            map[string]*domain.Payment
-	byIdempotency    map[string]*domain.Payment // key: fromAccountID + "|" + idempotencyKey
-	outboxEvents     []outboxEntry
+	byID          map[string]*domain.Payment
+	byIdempotency map[string]*domain.Payment // key: fromAccountID + "|" + idempotencyKey
+	outboxEvents  []outboxEntry
 }
 
 type outboxEntry struct {
@@ -28,7 +28,9 @@ func newFakePaymentRepository() *fakePaymentRepository {
 	}
 }
 
-func idemKey(fromAccountID, idempotencyKey string) string { return fromAccountID + "|" + idempotencyKey }
+func idemKey(fromAccountID, idempotencyKey string) string {
+	return fromAccountID + "|" + idempotencyKey
+}
 
 func (f *fakePaymentRepository) GetByIdempotencyKey(_ context.Context, fromAccountID, idempotencyKey string) (*domain.Payment, error) {
 	if p, ok := f.byIdempotency[idemKey(fromAccountID, idempotencyKey)]; ok {
@@ -96,4 +98,50 @@ func (f *fakeLedgerClient) PostTransaction(_ context.Context, idempotencyKey str
 		return "", f.err
 	}
 	return uuid.NewString(), nil
+}
+
+// fakeAccountResolver defaults to resolving any account number to itself
+// (identity), so existing tests that treat "acct-2" as if it were already
+// an account ID keep working unchanged -- tests that care about the
+// resolution step itself register an explicit override or a "missing"
+// account number.
+type fakeAccountResolver struct {
+	overrides map[string]string
+	missing   map[string]bool
+	err       error
+}
+
+func newFakeAccountResolver() *fakeAccountResolver {
+	return &fakeAccountResolver{overrides: map[string]string{}, missing: map[string]bool{}}
+}
+
+func (f *fakeAccountResolver) ResolveAccountID(_ context.Context, accountNumber string) (string, error) {
+	if f.err != nil {
+		return "", f.err
+	}
+	if f.missing[accountNumber] {
+		return "", domain.ErrRecipientAccountNotFound
+	}
+	if id, ok := f.overrides[accountNumber]; ok {
+		return id, nil
+	}
+	return accountNumber, nil
+}
+
+// fakeFraudChecker allows everything unless told otherwise.
+type fakeFraudChecker struct {
+	verdict FraudVerdict
+	err     error
+	calls   int
+}
+
+func (f *fakeFraudChecker) CheckTransaction(_ context.Context, _, _, _ string, _ int64, _, _ string) (FraudVerdict, error) {
+	f.calls++
+	if f.err != nil {
+		return FraudVerdict{}, f.err
+	}
+	if f.verdict.Decision == "" {
+		return FraudVerdict{Decision: FraudAllow}, nil
+	}
+	return f.verdict, nil
 }

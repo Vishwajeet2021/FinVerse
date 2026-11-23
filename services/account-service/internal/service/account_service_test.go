@@ -87,6 +87,57 @@ func TestFreezeUnfreeze(t *testing.T) {
 	}
 }
 
+func TestCloseAccount_RejectsNonZeroBalance(t *testing.T) {
+	svc, repo := newTestAccountService()
+	ctx := context.Background()
+
+	account, err := svc.OpenAccount(ctx, "customer-1", "SAVINGS")
+	if err != nil {
+		t.Fatalf("opening account: %v", err)
+	}
+	repo.balances[account.ID].LedgerBalanceMinor = 500_00
+
+	if err := svc.CloseAccount(ctx, account.ID); err != domain.ErrAccountHasBalance {
+		t.Fatalf("got %v, want ErrAccountHasBalance", err)
+	}
+	unchanged, _ := repo.GetByID(ctx, account.ID)
+	if unchanged.Status != domain.StatusActive {
+		t.Fatalf("a rejected close must not change status, got %v", unchanged.Status)
+	}
+}
+
+func TestCloseAccount_SucceedsAtZeroBalanceAndIsOneWay(t *testing.T) {
+	svc, repo := newTestAccountService()
+	ctx := context.Background()
+
+	account, err := svc.OpenAccount(ctx, "customer-1", "SAVINGS")
+	if err != nil {
+		t.Fatalf("opening account: %v", err)
+	}
+
+	if err := svc.CloseAccount(ctx, account.ID); err != nil {
+		t.Fatalf("closing: %v", err)
+	}
+	closed, _ := repo.GetByID(ctx, account.ID)
+	if closed.Status != domain.StatusClosed {
+		t.Fatalf("got status %v, want CLOSED", closed.Status)
+	}
+
+	found := false
+	for _, e := range repo.outboxEvents {
+		if e.EventType == EventAccountClosed {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected an AccountClosed outbox event")
+	}
+
+	if err := svc.CloseAccount(ctx, account.ID); err != domain.ErrAccountAlreadyClosed {
+		t.Fatalf("closing an already-closed account: got %v, want ErrAccountAlreadyClosed", err)
+	}
+}
+
 // TestConsumeTransactionPosted_IdempotentOnRedelivery is the correctness
 // property that matters most in this service: Redis Streams consumer groups
 // are at-least-once delivery (shared/go/eventbus), so the same

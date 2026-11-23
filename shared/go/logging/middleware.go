@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -31,6 +32,11 @@ func Middleware(base *zap.Logger) gin.HandlerFunc {
 		c.Set("request_id", reqID)
 
 		reqLogger := base.With(zap.String("request_id", reqID))
+		// The tracing middleware runs first, so a span is already active; carrying
+		// its ids lets Grafana jump from a log line to the Jaeger trace.
+		if sc := trace.SpanContextFromContext(c.Request.Context()); sc.IsValid() {
+			reqLogger = reqLogger.With(zap.String("trace_id", sc.TraceID().String()), zap.String("span_id", sc.SpanID().String()))
+		}
 		c.Set("logger", reqLogger)
 		c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), loggerCtxKey, reqLogger))
 

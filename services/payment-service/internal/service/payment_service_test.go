@@ -11,7 +11,7 @@ import (
 func newTestPaymentService() (*PaymentService, *fakePaymentRepository, *fakeLedgerClient) {
 	repo := newFakePaymentRepository()
 	ledger := &fakeLedgerClient{}
-	return NewPaymentService(repo, ledger), repo, ledger
+	return NewPaymentService(repo, ledger, newFakeAccountResolver(), &fakeFraudChecker{}, false), repo, ledger
 }
 
 func TestInitiatePayment_SendsCorrectLegsAndCompletes(t *testing.T) {
@@ -111,6 +111,25 @@ func TestInitiatePayment_RejectsSameAccountTransfer(t *testing.T) {
 	}
 }
 
+func TestInitiatePayment_RejectsUnknownAccountNumberBeforeCallingLedger(t *testing.T) {
+	repo := newFakePaymentRepository()
+	ledger := &fakeLedgerClient{}
+	resolver := newFakeAccountResolver()
+	resolver.missing["999999999999"] = true
+	svc := NewPaymentService(repo, ledger, resolver, &fakeFraudChecker{}, false)
+
+	_, err := svc.InitiatePayment(context.Background(), "acct-1", "999999999999", 100_00, "idem-1")
+	if err != domain.ErrRecipientAccountNotFound {
+		t.Fatalf("got %v, want ErrRecipientAccountNotFound", err)
+	}
+	if len(ledger.calls) != 0 {
+		t.Errorf("an unresolvable recipient must never reach the ledger, got %d calls", len(ledger.calls))
+	}
+	if len(repo.byID) != 0 {
+		t.Errorf("an unresolvable recipient must not create a payment record, got %d", len(repo.byID))
+	}
+}
+
 func TestInitiatePayment_RejectsNonPositiveAmount(t *testing.T) {
 	svc, _, _ := newTestPaymentService()
 	ctx := context.Background()
@@ -120,5 +139,58 @@ func TestInitiatePayment_RejectsNonPositiveAmount(t *testing.T) {
 	}
 	if _, err := svc.InitiatePayment(ctx, "acct-1", "acct-2", -50, "idem-2"); err != domain.ErrInvalidAmount {
 		t.Fatalf("got %v, want ErrInvalidAmount", err)
+	}
+}
+
+func newFraudTestService(f *fakeFraudChecker, failOpen bool) (*PaymentService, *fakePaymentRepository, *fakeLedgerClient) {
+	repo := newFakePaymentRepository()
+	ledger := &fakeLedgerClient{}
+	return NewPaymentService(repo, ledger, newFakeAccountResolver(), f, failOpen), repo, ledger
+}
+
+func TestInitiatePayment_FraudDenyFailsPaymentAndNeverTouchesLedger(t *testing.T) {
+	fraud := &fakeFraudChecker{verdict: FraudVerdict{Decision: FraudDeny, Rule: "VELOCITY", Reason: "Too many transfers."}}
+	svc, repo, ledger := newFraudTestService(fraud, false)
+
+	p, err := svc.InitiatePayment(context.Background(), "acct-1", "acct-2", 100, "idem-f1")
+	if err != nil || p == nil {
+		t.Fatalf("a denied payment is a FAILED payment record, not an error: p=%v err=%v", p, err)
+	}
+	if p.Status != domain.StatusFailed || p.FailureReason == nil || *p.FailureReason != "FRAUD_DENIED: Too many transfers." {
+		t.Errorf("got status=%v reason=%v", p.Status, p.FailureReason)
+	}
+	if len(ledger.calls) != 0 {
+		t.Errorf("ledger called %d times for a denied payment", len(ledger.calls))
+	}
+	last := repo.outboxEvents[len(repo.outboxEvents)-1]
+	if last.EventType != EventPaymentFailed {
+		t.Errorf("last event = %s, want PaymentFailed", last.EventType)
+	}
+}
+
+func TestInitiatePayment_FraudReviewStillCompletes(t *testing.T) {
+	svc, _, ledger := newFraudTestService(&fakeFraudChecker{verdict: FraudVerdict{Decision: FraudReview}}, false)
+	p, err := svc.InitiatePayment(context.Background(), "acct-1", "acct-2", 100, "idem-f2")
+	if err != nil || p.Status != domain.StatusCompleted || len(ledger.calls) != 1 {
+		t.Fatalf("REVIEW must proceed: p=%+v err=%v ledgerCalls=%d", p, err, len(ledger.calls))
+	}
+}
+
+func TestInitiatePayment_FraudUnavailableFailsClosedByDefault(t *testing.T) {
+	svc, _, ledger := newFraudTestService(&fakeFraudChecker{err: errors.New("connection refused")}, false)
+	p, err := svc.InitiatePayment(context.Background(), "acct-1", "acct-2", 100, "idem-f3")
+	if err == nil || p == nil || p.Status != domain.StatusFailed {
+		t.Fatalf("want a FAILED payment plus an error, got p=%+v err=%v", p, err)
+	}
+	if len(ledger.calls) != 0 {
+		t.Error("money moved without a fraud verdict")
+	}
+}
+
+func TestInitiatePayment_FraudUnavailableFailOpenProceeds(t *testing.T) {
+	svc, _, ledger := newFraudTestService(&fakeFraudChecker{err: errors.New("timeout")}, true)
+	p, err := svc.InitiatePayment(context.Background(), "acct-1", "acct-2", 100, "idem-f4")
+	if err != nil || p.Status != domain.StatusCompleted || len(ledger.calls) != 1 {
+		t.Fatalf("fail-open must proceed: p=%+v err=%v", p, err)
 	}
 }

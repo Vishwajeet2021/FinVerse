@@ -3,17 +3,17 @@ package config
 import "os"
 
 type Config struct {
-	Port                      string
-	DatabaseURL               string
-	RedisAddr                 string
+	Port                       string
+	DatabaseURL                string
+	RedisAddr                  string
 	TransactionServiceGRPCAddr string
-	CustomerServiceURL        string
-	AuthJWKSURL               string
-	AuthJWTIssuer             string
-	AuthJWTAudience           string
-	FrontendBaseURL           string
-	LogLevel                  string
-	Environment               string
+	CustomerServiceURL         string
+	AuthJWKSURL                string
+	AuthJWTIssuer              string
+	AuthJWTAudience            string
+	FrontendBaseURL            string
+	LogLevel                   string
+	Environment                string
 }
 
 func Load() Config {

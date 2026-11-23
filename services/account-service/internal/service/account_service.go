@@ -93,6 +93,14 @@ func (s *AccountService) GetAccount(ctx context.Context, accountID string) (*dom
 	return s.repo.GetByID(ctx, accountID)
 }
 
+// ResolveAccountNumber implements the internal account-number -> account-ID
+// lookup that Payment Service calls before posting a transfer — a payer
+// knows the recipient's public account number, never the internal UUID
+// (docs/07-microservice-specifications.md §7).
+func (s *AccountService) ResolveAccountNumber(ctx context.Context, accountNumber string) (*domain.Account, error) {
+	return s.repo.GetByAccountNumber(ctx, accountNumber)
+}
+
 // ListMyAccounts returns every account the given customer holds. Unlike
 // GetAccount, there's no separate ownership check to perform here —
 // ListByCustomerID is scoped to the caller's own customerID by construction.
@@ -163,6 +171,38 @@ func (s *AccountService) Unfreeze(ctx context.Context, accountID string) error {
 	payload := accountUnfrozenPayload{AccountID: accountID, Actor: "customer"}
 	if err := s.repo.UpdateStatusWithOutbox(ctx, accountID, domain.StatusActive, EventAccountUnfrozen, payload); err != nil {
 		return fmt.Errorf("unfreezing account: %w", err)
+	}
+	return nil
+}
+
+// CloseAccount implements FR-ACC-5's terminal transition: ACTIVE or FROZEN
+// -> CLOSED. Closing is permanent -- there's no Reopen, unlike
+// Freeze/Unfreeze -- so it's gated on a zero ledger balance
+// (domain.ErrAccountHasBalance) the same way a real bank refuses to close an
+// account out from under its own money. The caller (or the customer,
+// through a real transfer) must empty the account first; Account Service
+// has no way to move funds itself (docs/07-microservice-specifications.md §4
+// -- it never posts to the ledger).
+func (s *AccountService) CloseAccount(ctx context.Context, accountID string) error {
+	account, err := s.repo.GetByID(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	if account.Status == domain.StatusClosed {
+		return domain.ErrAccountAlreadyClosed
+	}
+
+	balance, err := s.repo.GetBalance(ctx, accountID)
+	if err != nil {
+		return fmt.Errorf("checking balance before close: %w", err)
+	}
+	if balance.LedgerBalanceMinor != 0 {
+		return domain.ErrAccountHasBalance
+	}
+
+	payload := accountClosedPayload{AccountID: accountID, Actor: "customer"}
+	if err := s.repo.UpdateStatusWithOutbox(ctx, accountID, domain.StatusClosed, EventAccountClosed, payload); err != nil {
+		return fmt.Errorf("closing account: %w", err)
 	}
 	return nil
 }

@@ -32,3 +32,6 @@ Thumbs.db
 
 # Coverage
 coverage.out
+
+# Generated load-test users
+loadtest/fixtures.json

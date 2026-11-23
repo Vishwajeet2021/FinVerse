@@ -15,6 +15,7 @@ const (
 	EventAccountOpened   = "AccountOpened"
 	EventAccountFrozen   = "AccountFrozen"
 	EventAccountUnfrozen = "AccountUnfrozen"
+	EventAccountClosed   = "AccountClosed"
 )
 
 // EventTransactionPosted is the event this service *consumes* — published by
@@ -43,6 +44,13 @@ type accountFrozenPayload struct {
 }
 
 type accountUnfrozenPayload struct {
+	AccountID string `json:"accountId"`
+	Actor     string `json:"actor"`
+}
+
+// accountClosedPayload carries the actor for the same reason
+// accountFrozenPayload does — closure has no dedicated audit column either.
+type accountClosedPayload struct {
 	AccountID string `json:"accountId"`
 	Actor     string `json:"actor"`
 }

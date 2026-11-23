@@ -13,6 +13,7 @@ import (
 	"github.com/finverse/shared/eventbus"
 	"github.com/finverse/shared/jwtauth"
 	sharedlogging "github.com/finverse/shared/logging"
+	"github.com/finverse/shared/telemetry"
 	"github.com/finverse/wallet-service/internal/client/ledger"
 	"github.com/finverse/wallet-service/internal/config"
 	"github.com/finverse/wallet-service/internal/migrate"
@@ -37,6 +38,12 @@ func main() {
 		panic(err)
 	}
 	defer func() { _ = logger.Sync() }()
+
+	shutdownTracing, err := telemetry.Init(context.Background(), "wallet-service")
+	if err != nil {
+		logger.Fatal("initializing tracing", zap.Error(err))
+	}
+	defer func() { _ = shutdownTracing(context.Background()) }()
 
 	if err := migrate.Up(cfg.DatabaseURL); err != nil {
 		logger.Fatal("applying migrations", zap.Error(err))

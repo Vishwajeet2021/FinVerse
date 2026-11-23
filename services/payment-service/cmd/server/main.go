@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	accountclient "github.com/finverse/payment-service/internal/client/account"
+	fraudclient "github.com/finverse/payment-service/internal/client/fraud"
 	"github.com/finverse/payment-service/internal/client/ledger"
 	"github.com/finverse/payment-service/internal/config"
 	"github.com/finverse/payment-service/internal/migrate"
@@ -18,6 +20,7 @@ import (
 	"github.com/finverse/shared/eventbus"
 	"github.com/finverse/shared/jwtauth"
 	sharedlogging "github.com/finverse/shared/logging"
+	"github.com/finverse/shared/telemetry"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -35,6 +38,12 @@ func main() {
 		panic(err)
 	}
 	defer func() { _ = logger.Sync() }()
+
+	shutdownTracing, err := telemetry.Init(context.Background(), "payment-service")
+	if err != nil {
+		logger.Fatal("initializing tracing", zap.Error(err))
+	}
+	defer func() { _ = shutdownTracing(context.Background()) }()
 
 	if err := migrate.Up(cfg.DatabaseURL); err != nil {
 		logger.Fatal("applying migrations", zap.Error(err))
@@ -61,9 +70,41 @@ func main() {
 		logger.Fatal("initializing JWT verifier", zap.Error(err))
 	}
 
+	accountClient := accountclient.NewClient(cfg.AccountServiceURL)
+
+	fraudClient, err := fraudclient.NewClient(cfg.FraudServiceGRPCAddr)
+	if err != nil {
+		logger.Fatal("connecting to fraud-service", zap.Error(err))
+	}
+	defer func() { _ = fraudClient.Close() }()
+
 	repo := postgres.NewPaymentRepository(db)
-	paymentService := service.NewPaymentService(repo, ledgerClient)
-	handler := transporthttp.NewHandler(paymentService)
+	paymentService := service.NewPaymentService(repo, ledgerClient, accountClient, fraudClient, cfg.FraudFailOpen).
+		WithRails(service.RailConfig{NeftBatch: time.Duration(cfg.NeftBatchSeconds) * time.Second, FailureRate: cfg.RailFailureRate}).
+		WithSchedules(postgres.NewScheduleRepository(db))
+	handler := transporthttp.NewHandler(paymentService, accountClient)
+
+	// Pollers: settle due async-rail payments and fire due schedules. Both claim
+	// work with leases (FOR UPDATE SKIP LOCKED), so extra replicas are safe.
+	workerCtx, cancelWorkers := context.WithCancel(context.Background())
+	defer cancelWorkers()
+	go func() {
+		t := time.NewTicker(time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-workerCtx.Done():
+				return
+			case <-t.C:
+				if _, err := paymentService.SettleDue(workerCtx); err != nil {
+					logger.Warn("settling due payments", zap.Error(err))
+				}
+				if _, err := paymentService.RunDueSchedules(workerCtx); err != nil {
+					logger.Warn("running due schedules", zap.Error(err))
+				}
+			}
+		}
+	}()
 
 	// Payment Service is a pure orchestrator (docs/06-domain-driven-design.md §2.6)
 	// — it publishes events via the outbox relay but consumes none itself, unlike

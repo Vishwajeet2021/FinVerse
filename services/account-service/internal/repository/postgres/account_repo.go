@@ -9,6 +9,7 @@ import (
 
 	"github.com/finverse/account-service/internal/domain"
 	"github.com/finverse/account-service/internal/service"
+	"github.com/finverse/shared/telemetry"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -45,7 +46,7 @@ func (r *AccountRepository) OpenAccountWithOutbox(ctx context.Context, account *
 		if err := tx.Create(&balanceProjectionModel{AccountID: account.ID, UpdatedAt: time.Now()}).Error; err != nil {
 			return fmt.Errorf("inserting balance projection: %w", err)
 		}
-		outbox := &outboxModel{ID: uuid.NewString(), EventType: eventType, Payload: payloadJSON, CreatedAt: time.Now()}
+		outbox := &outboxModel{ID: uuid.NewString(), EventType: eventType, Payload: payloadJSON, CreatedAt: time.Now(), TraceParent: telemetry.TraceParent(ctx)}
 		if err := tx.Create(outbox).Error; err != nil {
 			return fmt.Errorf("inserting outbox event: %w", err)
 		}
@@ -60,6 +61,17 @@ func (r *AccountRepository) GetByID(ctx context.Context, accountID string) (*dom
 			return nil, domain.ErrAccountNotFound
 		}
 		return nil, fmt.Errorf("querying account: %w", err)
+	}
+	return fromAccountModel(&m), nil
+}
+
+func (r *AccountRepository) GetByAccountNumber(ctx context.Context, accountNumber string) (*domain.Account, error) {
+	var m accountModel
+	if err := r.db.WithContext(ctx).First(&m, "account_number = ?", accountNumber).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domain.ErrAccountNotFound
+		}
+		return nil, fmt.Errorf("querying account by number: %w", err)
 	}
 	return fromAccountModel(&m), nil
 }
@@ -109,7 +121,7 @@ func (r *AccountRepository) UpdateStatusWithOutbox(ctx context.Context, accountI
 		if err := tx.Model(&accountModel{}).Where("id = ?", accountID).Update("status", string(status)).Error; err != nil {
 			return fmt.Errorf("updating account status: %w", err)
 		}
-		outbox := &outboxModel{ID: uuid.NewString(), EventType: eventType, Payload: payloadJSON, CreatedAt: time.Now()}
+		outbox := &outboxModel{ID: uuid.NewString(), EventType: eventType, Payload: payloadJSON, CreatedAt: time.Now(), TraceParent: telemetry.TraceParent(ctx)}
 		if err := tx.Create(outbox).Error; err != nil {
 			return fmt.Errorf("inserting outbox event: %w", err)
 		}
@@ -136,10 +148,10 @@ func (r *AccountRepository) ApplyTransactionPosted(ctx context.Context, eventID,
 			err := tx.Model(&balanceProjectionModel{}).
 				Where("account_id = ?", leg.AccountID).
 				Updates(map[string]any{
-					"ledger_balance_minor":     gorm.Expr("ledger_balance_minor + ?", leg.DeltaMinor),
-					"available_balance_minor":  gorm.Expr("available_balance_minor + ?", leg.DeltaMinor),
-					"last_transaction_id":      transactionID,
-					"updated_at":               time.Now(),
+					"ledger_balance_minor":    gorm.Expr("ledger_balance_minor + ?", leg.DeltaMinor),
+					"available_balance_minor": gorm.Expr("available_balance_minor + ?", leg.DeltaMinor),
+					"last_transaction_id":     transactionID,
+					"updated_at":              time.Now(),
 				}).Error
 			if err != nil {
 				return fmt.Errorf("applying balance delta for account %s: %w", leg.AccountID, err)

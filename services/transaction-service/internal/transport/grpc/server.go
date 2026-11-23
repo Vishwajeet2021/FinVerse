@@ -8,9 +8,9 @@ import (
 	"context"
 	"time"
 
+	ledgerv1 "github.com/finverse/shared/genproto/ledger/v1"
 	"github.com/finverse/transaction-service/internal/domain"
 	"github.com/finverse/transaction-service/internal/service"
-	ledgerv1 "github.com/finverse/shared/genproto/ledger/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

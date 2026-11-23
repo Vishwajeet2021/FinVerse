@@ -11,14 +11,15 @@ import (
 	"time"
 
 	"github.com/finverse/shared/eventbus"
+	ledgerv1 "github.com/finverse/shared/genproto/ledger/v1"
 	sharedlogging "github.com/finverse/shared/logging"
+	"github.com/finverse/shared/telemetry"
 	"github.com/finverse/transaction-service/internal/config"
 	"github.com/finverse/transaction-service/internal/migrate"
 	"github.com/finverse/transaction-service/internal/repository/postgres"
 	"github.com/finverse/transaction-service/internal/service"
 	transportgrpc "github.com/finverse/transaction-service/internal/transport/grpc"
 	transporthttp "github.com/finverse/transaction-service/internal/transport/http"
-	ledgerv1 "github.com/finverse/shared/genproto/ledger/v1"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -37,6 +38,12 @@ func main() {
 		panic(err)
 	}
 	defer func() { _ = logger.Sync() }()
+
+	shutdownTracing, err := telemetry.Init(context.Background(), "transaction-service")
+	if err != nil {
+		logger.Fatal("initializing tracing", zap.Error(err))
+	}
+	defer func() { _ = shutdownTracing(context.Background()) }()
 
 	if err := migrate.Up(cfg.DatabaseURL); err != nil {
 		logger.Fatal("applying migrations", zap.Error(err))
@@ -59,7 +66,7 @@ func main() {
 
 	// gRPC server — the sync path Payment/Wallet/Account Service call
 	// (docs/05-system-architecture.md §4).
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.StatsHandler(telemetry.GRPCServerStats()))
 	ledgerv1.RegisterLedgerServiceServer(grpcServer, transportgrpc.NewServer(ledger))
 	lis, err := net.Listen("tcp", ":"+cfg.GRPCPort)
 	if err != nil {

@@ -23,6 +23,13 @@ type AccountRepository interface {
 
 	GetByID(ctx context.Context, accountID string) (*domain.Account, error)
 
+	// GetByAccountNumber backs the internal account-number -> account-ID
+	// resolution endpoint (transport/http/handlers.go's ResolveAccountNumber)
+	// — the only identifier a payer actually knows for someone else's
+	// account is its public account number, never the internal UUID
+	// (docs/07-microservice-specifications.md §7).
+	GetByAccountNumber(ctx context.Context, accountNumber string) (*domain.Account, error)
+
 	// ListByCustomerID backs FR-ACC-1's read side: a customer can hold more
 	// than one account (docs/06-domain-driven-design.md §2.3), and there was
 	// no way to discover them without this — a gap surfaced when wiring the

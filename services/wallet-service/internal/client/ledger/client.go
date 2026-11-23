@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/finverse/wallet-service/internal/service"
 	ledgerv1 "github.com/finverse/shared/genproto/ledger/v1"
+	"github.com/finverse/shared/telemetry"
+	"github.com/finverse/wallet-service/internal/service"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -27,7 +28,7 @@ type Client struct {
 // services/account-service/internal/client/ledger/client.go's comment on
 // why: an un-warmed first call measurably timed out in local testing.
 func NewClient(addr string) (*Client, error) {
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithStatsHandler(telemetry.GRPCClientStats()))
 	if err != nil {
 		return nil, fmt.Errorf("dialing transaction-service at %s: %w", addr, err)
 	}

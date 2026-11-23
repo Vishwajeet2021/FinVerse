@@ -5,6 +5,7 @@ import (
 	"time"
 
 	sharedlogging "github.com/finverse/shared/logging"
+	"github.com/finverse/shared/telemetry"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -33,6 +34,7 @@ type AuthMiddleware interface {
 
 func NewRouter(deps RouterDeps) *gin.Engine {
 	r := gin.New()
+	r.Use(telemetry.GinMiddleware("auth-service"))
 	r.Use(sharedlogging.Recovery(deps.Logger))
 	r.Use(sharedlogging.Middleware(deps.Logger))
 	// AllowCredentials is required for the browser to send/receive the
@@ -48,6 +50,7 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 	}))
 
 	r.GET("/health", HealthHandler)
+	r.GET("/metrics", telemetry.MetricsHandler())
 	r.GET("/ready", ReadyHandler(deps.DB))
 	r.GET("/.well-known/jwks.json", JWKSHandler(deps.PublicKey, deps.KeyID))
 

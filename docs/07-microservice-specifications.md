@@ -38,10 +38,10 @@ Every service spec below follows the same shape, so switching context between se
 
 - **Purpose**: Owns bank accounts (savings/current/joint/virtual), their limits, freeze state, and the balance *read projection*.
 - **Owns**: Postgres (`accounts`, `account_holders`, `balance_projection`, `interest_schedules`). Does **not** own the ledger of truth — that's Transaction Service.
-- **Key APIs**: `POST /accounts`, `GET /accounts` (list the caller's own — added during Phase 2 implementation; a customer can hold more than one account and needs a way to discover them), `GET /accounts/{id}`, `GET /accounts/{id}/balance`, `POST /accounts/{id}/freeze`, `GET /accounts/{id}/statement`.
-- **Publishes**: `AccountOpened`, `AccountFrozen`, `AccountUnfrozen`, `InterestAccrued`.
+- **Key APIs**: `POST /accounts`, `GET /accounts` (list the caller's own — added during Phase 2 implementation; a customer can hold more than one account and needs a way to discover them), `GET /accounts/{id}`, `GET /accounts/{id}/balance`, `POST /accounts/{id}/freeze`, `POST /accounts/{id}/unfreeze`, `DELETE /accounts/{id}` (closes the account — terminal, requires a zero ledger balance), `GET /accounts/{id}/statement`.
+- **Publishes**: `AccountOpened`, `AccountFrozen`, `AccountUnfrozen`, `AccountClosed`, `InterestAccrued`.
 - **Consumes**: `TransactionPosted` (updates `balance_projection`), `KYCApproved` (raises tier/limits).
-- **Sync dependencies**: Transaction Service, for statement generation (historical leg detail beyond what's projected locally).
+- **Sync dependencies**: Transaction Service, for statement generation (historical leg detail beyond what's projected locally); Customer Service, for a live KYC-tier lookup (internal HTTP, `GET /internal/customers/by-user/{userId}/kyc-tier`) since Auth Service's JWT `kyc_tier` claim is a documented Phase 1/2 stand-in that's always 0.
 - **Scaling notes**: `balance_projection` is Redis-cached in front of Postgres to hit NFR-PERF-1; this is the CQRS read side described in `05-system-architecture.md §5`.
 - **Phase**: 1–2.
 
@@ -74,7 +74,7 @@ Every service spec below follows the same shape, so switching context between se
 - **Key APIs**: `POST /payments`, `GET /payments/{id}`, `POST /payments/standing-instructions`, `DELETE /payments/standing-instructions/{id}`.
 - **Publishes**: `PaymentInitiated`, `PaymentCompleted`, `PaymentFailed`.
 - **Consumes**: none directly on the request path; a scheduler (cron-style, Lambda-triggered — see `14-aws-infrastructure.md`) triggers due scheduled payments/EMI-linked standing instructions.
-- **Sync dependencies**: Fraud Service (`CheckTransaction`, gRPC, NFR-PERF-4), Transaction Service (`PostLedgerEntry`, gRPC), Auth Service (OTP step-up, when required).
+- **Sync dependencies**: Fraud Service (`CheckTransaction`, gRPC, NFR-PERF-4), Transaction Service (`PostLedgerEntry`, gRPC), Auth Service (OTP step-up, when required), Account Service (account-number -> account-ID resolution for the INTERNAL rail, plain HTTP — the same internal-network-trust posture Account Service itself uses to call Customer Service for KYC tier, not one of the designated gRPC pairs).
 - **Scaling notes**: stateless orchestration; the circuit breakers around its two sync dependencies (§7 of `05-system-architecture.md`) are the most important resilience code in this service.
 - **Phase**: 2–3.
 

@@ -5,6 +5,7 @@ import (
 
 	"github.com/finverse/shared/jwtauth"
 	sharedlogging "github.com/finverse/shared/logging"
+	"github.com/finverse/shared/telemetry"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -31,6 +32,7 @@ type AuthMiddleware interface {
 
 func NewRouter(deps RouterDeps) *gin.Engine {
 	r := gin.New()
+	r.Use(telemetry.GinMiddleware("customer-service"))
 	r.Use(sharedlogging.Recovery(deps.Logger))
 	r.Use(sharedlogging.Middleware(deps.Logger))
 	// AllowCredentials must be true even though this service never sets a
@@ -50,6 +52,7 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 	}))
 
 	r.GET("/health", HealthHandler)
+	r.GET("/metrics", telemetry.MetricsHandler())
 	r.GET("/ready", ReadyHandler(deps.DB))
 
 	// Internal, service-to-service only — see GetKYCTierByUserID's comment

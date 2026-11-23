@@ -18,6 +18,10 @@ func writeDomainError(c *gin.Context, err error) {
 		apiresponse.Conflict(c, "ACCOUNT_ALREADY_FROZEN", "This account is already frozen.")
 	case domain.ErrAccountNotFrozen:
 		apiresponse.Conflict(c, "ACCOUNT_NOT_FROZEN", "This account is not frozen.")
+	case domain.ErrAccountAlreadyClosed:
+		apiresponse.Conflict(c, "ACCOUNT_ALREADY_CLOSED", "This account is already closed.")
+	case domain.ErrAccountHasBalance:
+		apiresponse.UnprocessableEntity(c, "ACCOUNT_HAS_BALANCE", "This account's balance must be zero before it can be closed.")
 	case domain.ErrInvalidProductType:
 		apiresponse.BadRequest(c, "INVALID_PRODUCT_TYPE", "Product type must be one of SAVINGS, CURRENT, JOINT, VIRTUAL.")
 	case domain.ErrNotAccountHolder:

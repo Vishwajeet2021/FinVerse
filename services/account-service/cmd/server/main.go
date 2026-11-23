@@ -20,6 +20,7 @@ import (
 	"github.com/finverse/shared/eventbus"
 	"github.com/finverse/shared/jwtauth"
 	sharedlogging "github.com/finverse/shared/logging"
+	"github.com/finverse/shared/telemetry"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -38,6 +39,12 @@ func main() {
 		panic(err)
 	}
 	defer func() { _ = logger.Sync() }()
+
+	shutdownTracing, err := telemetry.Init(context.Background(), "account-service")
+	if err != nil {
+		logger.Fatal("initializing tracing", zap.Error(err))
+	}
+	defer func() { _ = shutdownTracing(context.Background()) }()
 
 	if err := migrate.Up(cfg.DatabaseURL); err != nil {
 		logger.Fatal("applying migrations", zap.Error(err))

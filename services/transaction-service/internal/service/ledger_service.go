@@ -6,6 +6,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -48,6 +49,9 @@ func (s *LedgerService) PostTransaction(ctx context.Context, sourceService, idem
 	}
 
 	if err := txn.Validate(); err != nil {
+		if errors.Is(err, domain.ErrUnbalancedLegs) {
+			balanceCheckFailures.Inc() // must always be zero; alerts page on any increment (NFR-DATA-3)
+		}
 		return nil, err
 	}
 
@@ -59,6 +63,7 @@ func (s *LedgerService) PostTransaction(ctx context.Context, sourceService, idem
 	if err := s.repo.CreateWithOutbox(ctx, txn, EventTransactionPosted, payload); err != nil {
 		return nil, fmt.Errorf("posting transaction: %w", err)
 	}
+	transactionsPosted.Inc()
 
 	return txn, nil
 }

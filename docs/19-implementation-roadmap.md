@@ -52,11 +52,11 @@ Status legend: `[ ]` not started, `[~]` in progress, `[x]` done.
 
 **Goal**: the event-driven backbone is real, not aspirational — services react to each other without direct coupling.
 
-- [ ] EventBridge-equivalent wired locally (LocalStack or the interim substitute decided in `18-development-workflow.md §7`), outbox relay implemented for Transaction/Account/Payment/Customer/Auth.
-- [ ] Notification Service: consumes the event catalog, delivers via at least email (SMS/push can be stubbed loggers initially), retry + DLQ (FR-NOTIF-1 to -5).
-- [ ] Fraud Service (basic): daily limits, velocity rules, `CheckTransaction` gRPC call wired into Payment's synchronous path (FR-FRAUD-1, -2, -5).
-- [ ] Audit Service: consumes the event catalog, append-only storage, basic query API (FR-AUDIT-1 to -4).
-- [ ] Full payment rail simulation (NEFT/RTGS/IMPS/UPI timing/status semantics), scheduled payments, standing instructions (FR-PAY-1 to -3).
+- [~] (Redis Streams chosen; outbox relay exists for Transaction/Account/Payment/Wallet, not yet Customer/Auth) EventBridge-equivalent wired locally (LocalStack or the interim substitute decided in `18-development-workflow.md §7`), outbox relay implemented for Transaction/Account/Payment/Customer/Auth.
+- [~] Notification Service: consumes Payment/Account events, email via a logging sender, idempotent, retry with exponential backoff + per-service DLQ with inspect/replay/discard admin API — verified live (`docs/20-ai-dlc-phase3.md`). Gaps: SMS/push, preferences, customer inbox for payment events (FR-NOTIF partially).
+- [x] Fraud Service (basic): single-transfer/daily/velocity/review rules, `CheckTransaction` gRPC wired into Payment's synchronous path (fail-closed by default), REVIEW/DENY cases with analyst list/resolve and `FraudCaseOpened`/`Resolved` events (FR-FRAUD-1, -2, -5). Verified live; CheckTransaction p99 9.1 ms vs the 80 ms NFR-PERF-4 budget (`docs/20-ai-dlc-phase3.md`).
+- [x] Audit Service: consumes 13 event types, append-only (DB trigger-enforced), idempotent, read-only query API (FR-AUDIT-1 to -4). Verified live. Not yet: monthly partitioning, admin-action events.
+- [x] Payment rail simulation (UPI/IMPS/NEFT/RTGS limits, PROCESSING->COMPLETED/FAILED with per-rail delays, NEFT batches), scheduled payments, standing instructions (daily/weekly/monthly, pause/resume/cancel), caller-ownership check on `fromAccountId` (FR-PAY-1 to -3). Verified live; see `docs/20-ai-dlc-phase3.md`. Gaps: RTGS happy path and failure injection only unit-tested.
 - [ ] Contract tests (Pact) stood up for the gRPC calls that now exist (Payment↔Fraud, Payment↔Transaction).
 
 **Exit criteria**: a payment triggers a fraud check, a ledger post, a notification, and an audit record — and killing the Notification Service doesn't affect payment success (NFR-AVAIL-2 demonstrated, not just claimed).
@@ -86,11 +86,11 @@ Status legend: `[ ]` not started, `[~]` in progress, `[x]` done.
 
 **Goal**: the system is observable and its performance claims are measured, not assumed.
 
-- [ ] OpenTelemetry instrumentation across all Phase 1–4 services (if not already present incrementally — this phase is where it's verified end-to-end, not where it starts).
-- [ ] Prometheus + Grafana dashboards per `16-observability.md §6` (Platform overview, Ledger health, Payment funnel at minimum).
-- [ ] Loki + Promtail centralized logging.
+- [~] OpenTelemetry instrumentation across all Phase 1–4 services — tracing done for all 7 services + event hops, verified in Jaeger (13-span payment trace); metrics not yet. (Original text:) (if not already present incrementally — this phase is where it's verified end-to-end, not where it starts).
+- [x] Prometheus + Grafana dashboards per `16-observability.md §6` (Platform overview, Payment funnel + ledger health, Fraud/messaging/DLQ), with the section 8 alert rules loaded in Prometheus (no Alertmanager delivery yet). Verified live; see `docs/20-ai-dlc-phase3.md`.
+- [~] Loki + Promtail centralized logging: working for all containers, HTTP log lines carry `trace_id`; gRPC/consumer logs do not yet (see `docs/20-ai-dlc-phase3.md`).
 - [ ] Alerting rules per `16-observability.md §8` wired to a real notification channel.
-- [ ] Formal k6 load testing suite (automatable, not just the manual Phase 2 run) against a dedicated temporary stack.
+- [~] Formal k6 load testing suite — `loadtest/payments.js` (106 req/s, p95 228 ms, 0 errors, zero drift on one host; see `docs/20-ai-dlc-phase3.md`); no spike/soak yet. (Original text:) (automatable, not just the manual Phase 2 run) against a dedicated temporary stack.
 - [ ] Backup/restore drill executed and documented (`14-aws-infrastructure.md §10`).
 
 **Exit criteria**: a deliberately broken service (e.g. kill Transaction Service's DB connection) is detected by an alert within the NFR-OBS-5 5-minute target, and the trace/log/metric correlation actually works when investigating it.

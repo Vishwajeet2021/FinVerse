@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/finverse/shared/telemetry"
 	"github.com/finverse/wallet-service/internal/domain"
 	"github.com/finverse/wallet-service/internal/service"
 	"github.com/google/uuid"
@@ -38,7 +39,7 @@ func (r *WalletRepository) CreateWalletWithProjection(ctx context.Context, walle
 		if err := tx.Create(&balanceProjectionModel{WalletID: wallet.ID, UpdatedAt: time.Now()}).Error; err != nil {
 			return fmt.Errorf("inserting balance projection: %w", err)
 		}
-		outbox := &outboxModel{ID: uuid.NewString(), EventType: eventType, Payload: payloadJSON, CreatedAt: time.Now()}
+		outbox := &outboxModel{ID: uuid.NewString(), EventType: eventType, Payload: payloadJSON, CreatedAt: time.Now(), TraceParent: telemetry.TraceParent(ctx)}
 		if err := tx.Create(outbox).Error; err != nil {
 			return fmt.Errorf("inserting outbox event: %w", err)
 		}
@@ -125,7 +126,7 @@ func (r *WalletRepository) InsertOutboxEvent(ctx context.Context, eventType stri
 	if err != nil {
 		return fmt.Errorf("marshaling outbox payload: %w", err)
 	}
-	outbox := &outboxModel{ID: uuid.NewString(), EventType: eventType, Payload: payloadJSON, CreatedAt: time.Now()}
+	outbox := &outboxModel{ID: uuid.NewString(), EventType: eventType, Payload: payloadJSON, CreatedAt: time.Now(), TraceParent: telemetry.TraceParent(ctx)}
 	if err := r.db.WithContext(ctx).Create(outbox).Error; err != nil {
 		return fmt.Errorf("inserting standalone outbox event: %w", err)
 	}

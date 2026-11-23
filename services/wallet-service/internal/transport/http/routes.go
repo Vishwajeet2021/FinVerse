@@ -5,6 +5,7 @@ import (
 
 	"github.com/finverse/shared/jwtauth"
 	sharedlogging "github.com/finverse/shared/logging"
+	"github.com/finverse/shared/telemetry"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -25,6 +26,7 @@ type AuthMiddleware interface {
 
 func NewRouter(deps RouterDeps) *gin.Engine {
 	r := gin.New()
+	r.Use(telemetry.GinMiddleware("wallet-service"))
 	r.Use(sharedlogging.Recovery(deps.Logger))
 	r.Use(sharedlogging.Middleware(deps.Logger))
 	r.Use(cors.New(cors.Config{
@@ -36,6 +38,7 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 	}))
 
 	r.GET("/health", HealthHandler)
+	r.GET("/metrics", telemetry.MetricsHandler())
 	r.GET("/ready", ReadyHandler(deps.DB))
 
 	v1 := r.Group("/api/v1/wallets")

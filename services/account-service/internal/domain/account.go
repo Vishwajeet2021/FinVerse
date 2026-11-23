@@ -90,11 +90,11 @@ type AccountHolder struct {
 // Service's TransactionPosted events, never written to by any
 // customer-facing request path directly.
 type BalanceProjection struct {
-	AccountID              string
-	LedgerBalanceMinor     int64
-	AvailableBalanceMinor  int64
-	LastTransactionID      *string
-	UpdatedAt              time.Time
+	AccountID             string
+	LedgerBalanceMinor    int64
+	AvailableBalanceMinor int64
+	LastTransactionID     *string
+	UpdatedAt             time.Time
 }
 
 var (
@@ -103,9 +103,16 @@ var (
 	ErrAccountClosed        = errors.New("account is closed")
 	ErrAccountAlreadyFrozen = errors.New("account is already frozen")
 	ErrAccountNotFrozen     = errors.New("account is not frozen")
-	ErrInvalidProductType   = errors.New("invalid product type")
-	ErrNotAccountHolder     = errors.New("caller is not a holder of this account")
-	ErrInsufficientKYCTier  = errors.New("customer's KYC tier is insufficient for this operation")
+	ErrAccountAlreadyClosed = errors.New("account is already closed")
+	// ErrAccountHasBalance guards FR-ACC-5's closure path: an account can
+	// only be closed at a zero ledger balance, the same real-world rule
+	// every bank enforces — closing is not a way to make money disappear.
+	// The caller must move funds out first (a transfer to another account,
+	// or a reversal of whatever put the balance there) before retrying.
+	ErrAccountHasBalance   = errors.New("account balance must be zero to close it")
+	ErrInvalidProductType  = errors.New("invalid product type")
+	ErrNotAccountHolder    = errors.New("caller is not a holder of this account")
+	ErrInsufficientKYCTier = errors.New("customer's KYC tier is insufficient for this operation")
 	// ErrAccountNumberCollision signals the generated account number hit the
 	// UNIQUE constraint on accounts.account_number — the caller
 	// (internal/service) is expected to retry with a freshly generated

@@ -3,8 +3,8 @@ package postgres
 import "time"
 
 type userModel struct {
-	ID               string     `gorm:"column:id;primaryKey"`
-	Email            string     `gorm:"column:email"`
+	ID    string `gorm:"column:id;primaryKey"`
+	Email string `gorm:"column:email"`
 	// Phone is a pointer so an omitted phone number stores SQL NULL, not "" —
 	// the column is UNIQUE, and Postgres treats NULL <> NULL (any number of
 	// NULLs are allowed) but "" = "" (a second empty-string phone number

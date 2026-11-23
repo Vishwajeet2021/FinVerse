@@ -136,7 +136,7 @@ graph TB
 | `UserRegistered`, `UserVerified` | Auth | Customer, Notification, Audit |
 | `KYCApproved`, `KYCRejected` | Customer | Account, Fraud, Notification, Audit, Search |
 | `BeneficiaryAdded` | Customer | Fraud, Notification, Audit |
-| `AccountOpened`, `AccountFrozen`, `AccountUnfrozen` | Account | Notification, Audit, Search, Analytics |
+| `AccountOpened`, `AccountFrozen`, `AccountUnfrozen`, `AccountClosed` | Account | Notification, Audit, Search, Analytics |
 | `InterestAccrued` | Account | Notification, Analytics |
 | `WalletToppedUp`, `WalletTransferred` | Wallet | Notification, Audit, Analytics |
 | `TransactionPosted`, `TransactionReversed` | Transaction | Account, Wallet, Notification, Audit, Analytics, Fraud |

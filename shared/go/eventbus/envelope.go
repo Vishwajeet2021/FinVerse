@@ -15,11 +15,15 @@ import (
 // every publisher and consumer in every service uses exactly this shape, so
 // the 15 services' events feel like one system.
 type Envelope struct {
-	EventID       string          `json:"eventId"`
-	EventType     string          `json:"eventType"`
-	Version       int             `json:"version"`
-	OccurredAt    time.Time       `json:"occurredAt"`
-	SourceService string          `json:"sourceService"`
-	TraceID       string          `json:"traceId,omitempty"`
-	Data          json.RawMessage `json:"data"`
+	EventID       string    `json:"eventId"`
+	EventType     string    `json:"eventType"`
+	Version       int       `json:"version"`
+	OccurredAt    time.Time `json:"occurredAt"`
+	SourceService string    `json:"sourceService"`
+	TraceID       string    `json:"traceId,omitempty"`
+	// TraceParent is the W3C traceparent of the publishing span, so a
+	// consumer's span is a child of the request that caused the event
+	// (NFR-OBS-1, trace propagation across the event fan-out).
+	TraceParent string          `json:"traceParent,omitempty"`
+	Data        json.RawMessage `json:"data"`
 }

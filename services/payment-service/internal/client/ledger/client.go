@@ -8,6 +8,7 @@ import (
 
 	"github.com/finverse/payment-service/internal/service"
 	ledgerv1 "github.com/finverse/shared/genproto/ledger/v1"
+	"github.com/finverse/shared/telemetry"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -28,7 +29,7 @@ type Client struct {
 // matters even more here since InitiatePayment's own ledgerCallTimeout is
 // only 2 seconds.
 func NewClient(addr string) (*Client, error) {
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithStatsHandler(telemetry.GRPCClientStats()))
 	if err != nil {
 		return nil, fmt.Errorf("dialing transaction-service at %s: %w", addr, err)
 	}

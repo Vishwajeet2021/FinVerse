@@ -69,6 +69,16 @@ func (f *fakeAccountRepository) GetByID(_ context.Context, accountID string) (*d
 	return &cp, nil
 }
 
+func (f *fakeAccountRepository) GetByAccountNumber(_ context.Context, accountNumber string) (*domain.Account, error) {
+	for _, a := range f.accounts {
+		if a.AccountNumber == accountNumber {
+			cp := *a
+			return &cp, nil
+		}
+	}
+	return nil, domain.ErrAccountNotFound
+}
+
 func (f *fakeAccountRepository) ListByCustomerID(_ context.Context, customerID string) ([]domain.Account, error) {
 	var out []domain.Account
 	for _, a := range f.accounts {
