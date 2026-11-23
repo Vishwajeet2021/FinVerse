@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/finverse/shared/svcauth"
 	"net/http"
 	"sync"
 	"time"
@@ -27,13 +28,14 @@ const ownershipTTL = 60 * time.Second
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
+	signer     *svcauth.Signer
 
 	mu        sync.Mutex
 	ownership map[string]time.Time // userID|accountID -> verified until
 }
 
-func NewClient(baseURL string) *Client {
-	return &Client{baseURL: baseURL, httpClient: &http.Client{Timeout: 3 * time.Second}, ownership: map[string]time.Time{}}
+func NewClient(baseURL string, signer *svcauth.Signer) *Client {
+	return &Client{baseURL: baseURL, signer: signer, httpClient: &http.Client{Timeout: 3 * time.Second}, ownership: map[string]time.Time{}}
 }
 
 // VerifyOwnership confirms the caller holds accountID by asking Account Service
@@ -88,6 +90,7 @@ func (c *Client) ResolveAccountID(ctx context.Context, accountNumber string) (st
 	if err != nil {
 		return "", fmt.Errorf("building request: %w", err)
 	}
+	c.signer.SignRequest(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

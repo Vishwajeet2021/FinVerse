@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"github.com/finverse/shared/svcauth"
 	"net"
 	"net/http"
 	"os"
@@ -43,6 +44,12 @@ func main() {
 	}
 	defer func() { _ = logger.Sync() }()
 
+	svcKey, err := svcauth.KeyFromEnv()
+	if err != nil {
+		logger.Fatal("loading service auth key", zap.Error(err))
+	}
+	svcVerifier := svcauth.NewVerifier(svcKey)
+
 	shutdownTracing, err := telemetry.Init(context.Background(), serviceName)
 	if err != nil {
 		logger.Fatal("initializing tracing", zap.Error(err))
@@ -82,7 +89,7 @@ func main() {
 	if err != nil {
 		logger.Fatal("listening for gRPC", zap.Error(err))
 	}
-	grpcServer := grpc.NewServer(grpc.StatsHandler(telemetry.GRPCServerStats()), grpc.ChainUnaryInterceptor(sharedlogging.UnaryServerInterceptor(logger)))
+	grpcServer := grpc.NewServer(grpc.StatsHandler(telemetry.GRPCServerStats()), grpc.ChainUnaryInterceptor(sharedlogging.UnaryServerInterceptor(logger), svcVerifier.UnaryServerInterceptor("payment-service")))
 	fraudv1.RegisterFraudServiceServer(grpcServer, transportgrpc.NewServer(svc))
 	go func() {
 		logger.Info("fraud-service gRPC listening", zap.String("port", cfg.GRPCPort))
@@ -94,7 +101,7 @@ func main() {
 	router := transporthttp.NewRouter(transporthttp.RouterDeps{
 		Handler: transporthttp.NewHandler(svc), Verifier: verifier, DB: db, Logger: logger, FrontendOrigin: cfg.FrontendBaseURL,
 	})
-	srv := &http.Server{Addr: ":" + cfg.Port, Handler: router, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
+	srv := &http.Server{Addr: ":" + cfg.Port, Handler: router, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
 	go func() {
 		logger.Info("fraud-service listening", zap.String("port", cfg.Port), zap.String("environment", cfg.Environment))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/finverse/audit-service/internal/service"
 	"github.com/finverse/shared/apiresponse"
+	"github.com/finverse/shared/httpsec"
 	"github.com/finverse/shared/jwtauth"
 	sharedlogging "github.com/finverse/shared/logging"
 	"github.com/finverse/shared/telemetry"
@@ -29,6 +30,7 @@ type RouterDeps struct {
 func NewRouter(deps RouterDeps) *gin.Engine {
 	r := gin.New()
 	r.Use(telemetry.GinMiddleware("audit-service"))
+	r.Use(httpsec.Headers(), httpsec.BodyLimit(httpsec.DefaultBodyLimit))
 	r.Use(sharedlogging.Recovery(deps.Logger))
 	r.Use(sharedlogging.Middleware(deps.Logger))
 	r.Use(cors.New(cors.Config{

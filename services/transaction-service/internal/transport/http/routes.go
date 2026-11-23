@@ -1,9 +1,11 @@
 package http
 
 import (
+	"github.com/finverse/shared/svcauth"
 	"net/http"
 
 	"github.com/finverse/shared/apiresponse"
+	"github.com/finverse/shared/httpsec"
 	sharedlogging "github.com/finverse/shared/logging"
 	"github.com/finverse/shared/telemetry"
 	"github.com/finverse/transaction-service/internal/service"
@@ -16,9 +18,10 @@ import (
 // deliberately no API Gateway route to this service (docs/07-microservice-specifications.md §6) —
 // this router only needs to be reachable from inside the private network for
 // ops/cron use, not from the public internet.
-func NewRouter(ledger *service.LedgerService, db *gorm.DB, logger *zap.Logger) *gin.Engine {
+func NewRouter(ledger *service.LedgerService, db *gorm.DB, logger *zap.Logger, verifier *svcauth.Verifier) *gin.Engine {
 	r := gin.New()
 	r.Use(telemetry.GinMiddleware("transaction-service"))
+	r.Use(httpsec.Headers(), httpsec.BodyLimit(httpsec.DefaultBodyLimit))
 	r.Use(sharedlogging.Recovery(logger))
 	r.Use(sharedlogging.Middleware(logger))
 
@@ -29,7 +32,7 @@ func NewRouter(ledger *service.LedgerService, db *gorm.DB, logger *zap.Logger) *
 	// FR-TXN-5. Triggered manually or by a scheduler in later phases
 	// (docs/14-aws-infrastructure.md §7) — Phase 2's job is correctness of
 	// the closing logic itself, not the scheduling mechanism.
-	r.POST("/internal/daily-closing/run", func(c *gin.Context) {
+	r.POST("/internal/daily-closing/run", verifier.Middleware("ops"), func(c *gin.Context) {
 		if err := ledger.RunDailyClosing(c.Request.Context()); err != nil {
 			apiresponse.Internal(c, "DAILY_CLOSING_FAILED", "Daily closing failed to complete.")
 			return

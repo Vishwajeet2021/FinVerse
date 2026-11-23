@@ -5,6 +5,7 @@ package fraud
 import (
 	"context"
 	"fmt"
+	"github.com/finverse/shared/svcauth"
 
 	"github.com/finverse/payment-service/internal/service"
 	fraudv1 "github.com/finverse/shared/genproto/fraud/v1"
@@ -21,8 +22,8 @@ type Client struct {
 // NewClient dials Fraud Service. conn.Connect() warms the connection eagerly
 // for the same reason the ledger client does: an un-warmed first call can
 // blow the (here 300ms) call budget.
-func NewClient(addr string) (*Client, error) {
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()),
+func NewClient(addr string, signer *svcauth.Signer) (*Client, error) {
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithChainUnaryInterceptor(signer.UnaryClientInterceptor()),
 		grpc.WithStatsHandler(telemetry.GRPCClientStats()))
 	if err != nil {
 		return nil, fmt.Errorf("dialing fraud-service at %s: %w", addr, err)

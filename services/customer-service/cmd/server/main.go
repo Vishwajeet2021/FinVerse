@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"github.com/finverse/shared/svcauth"
 	"net/http"
 	"os"
 	"os/signal"
@@ -35,6 +36,12 @@ func main() {
 		panic(err)
 	}
 	defer func() { _ = logger.Sync() }()
+
+	svcKey, err := svcauth.KeyFromEnv()
+	if err != nil {
+		logger.Fatal("loading service auth key", zap.Error(err))
+	}
+	svcVerifier := svcauth.NewVerifier(svcKey)
 
 	shutdownTracing, err := telemetry.Init(context.Background(), "customer-service")
 	if err != nil {
@@ -96,18 +103,20 @@ func main() {
 	handler := transporthttp.NewHandler(customerService)
 
 	router := transporthttp.NewRouter(transporthttp.RouterDeps{
-		Handler:        handler,
-		Verifier:       verifier,
-		DB:             db,
-		Logger:         logger,
-		FrontendOrigin: cfg.FrontendBaseURL,
+		Handler:         handler,
+		Verifier:        verifier,
+		DB:              db,
+		Logger:          logger,
+		ServiceVerifier: svcVerifier,
+		FrontendOrigin:  cfg.FrontendBaseURL,
 	})
 
 	srv := &http.Server{
-		Addr:         ":" + cfg.Port,
-		Handler:      router,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		Addr:              ":" + cfg.Port,
+		Handler:           router,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
 	}
 
 	go func() {

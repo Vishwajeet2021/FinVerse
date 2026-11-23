@@ -5,6 +5,7 @@ package ledger
 import (
 	"context"
 	"fmt"
+	"github.com/finverse/shared/svcauth"
 	"time"
 
 	ledgerv1 "github.com/finverse/shared/genproto/ledger/v1"
@@ -27,8 +28,8 @@ type Client struct {
 // lazily on the first RPC (grpc.NewClient's default behavior) — see
 // services/account-service/internal/client/ledger/client.go's comment on
 // why: an un-warmed first call measurably timed out in local testing.
-func NewClient(addr string) (*Client, error) {
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithStatsHandler(telemetry.GRPCClientStats()))
+func NewClient(addr string, signer *svcauth.Signer) (*Client, error) {
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithChainUnaryInterceptor(signer.UnaryClientInterceptor()), grpc.WithStatsHandler(telemetry.GRPCClientStats()))
 	if err != nil {
 		return nil, fmt.Errorf("dialing transaction-service at %s: %w", addr, err)
 	}

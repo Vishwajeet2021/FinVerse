@@ -4,6 +4,7 @@ import (
 	"crypto/rsa"
 	"time"
 
+	"github.com/finverse/shared/httpsec"
 	sharedlogging "github.com/finverse/shared/logging"
 	"github.com/finverse/shared/telemetry"
 	"github.com/gin-contrib/cors"
@@ -35,6 +36,7 @@ type AuthMiddleware interface {
 func NewRouter(deps RouterDeps) *gin.Engine {
 	r := gin.New()
 	r.Use(telemetry.GinMiddleware("auth-service"))
+	r.Use(httpsec.Headers(), httpsec.BodyLimit(httpsec.DefaultBodyLimit))
 	r.Use(sharedlogging.Recovery(deps.Logger))
 	r.Use(sharedlogging.Middleware(deps.Logger))
 	// AllowCredentials is required for the browser to send/receive the

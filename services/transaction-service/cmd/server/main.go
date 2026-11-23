@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"github.com/finverse/shared/svcauth"
 	"net"
 	"net/http"
 	"os"
@@ -39,6 +40,12 @@ func main() {
 	}
 	defer func() { _ = logger.Sync() }()
 
+	svcKey, err := svcauth.KeyFromEnv()
+	if err != nil {
+		logger.Fatal("loading service auth key", zap.Error(err))
+	}
+	svcVerifier := svcauth.NewVerifier(svcKey)
+
 	shutdownTracing, err := telemetry.Init(context.Background(), "transaction-service")
 	if err != nil {
 		logger.Fatal("initializing tracing", zap.Error(err))
@@ -66,7 +73,7 @@ func main() {
 
 	// gRPC server — the sync path Payment/Wallet/Account Service call
 	// (docs/05-system-architecture.md §4).
-	grpcServer := grpc.NewServer(grpc.StatsHandler(telemetry.GRPCServerStats()), grpc.ChainUnaryInterceptor(sharedlogging.UnaryServerInterceptor(logger)))
+	grpcServer := grpc.NewServer(grpc.StatsHandler(telemetry.GRPCServerStats()), grpc.ChainUnaryInterceptor(sharedlogging.UnaryServerInterceptor(logger), svcVerifier.UnaryServerInterceptor("payment-service", "account-service", "wallet-service")))
 	ledgerv1.RegisterLedgerServiceServer(grpcServer, transportgrpc.NewServer(ledger))
 	lis, err := net.Listen("tcp", ":"+cfg.GRPCPort)
 	if err != nil {
@@ -80,12 +87,13 @@ func main() {
 	}()
 
 	// HTTP server — health/readiness + the daily-closing trigger only.
-	router := transporthttp.NewRouter(ledger, db, logger)
+	router := transporthttp.NewRouter(ledger, db, logger, svcVerifier)
 	httpServer := &http.Server{
-		Addr:         ":" + cfg.HTTPPort,
-		Handler:      router,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		Addr:              ":" + cfg.HTTPPort,
+		Handler:           router,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
 	}
 	go func() {
 		logger.Info("transaction-service HTTP listening", zap.String("port", cfg.HTTPPort), zap.String("environment", cfg.Environment))

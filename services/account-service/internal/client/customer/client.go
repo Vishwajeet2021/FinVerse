@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/finverse/shared/svcauth"
 	"net/http"
 	"time"
 )
@@ -16,10 +17,11 @@ import (
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
+	signer     *svcauth.Signer
 }
 
-func NewClient(baseURL string) *Client {
-	return &Client{baseURL: baseURL, httpClient: &http.Client{Timeout: 3 * time.Second}}
+func NewClient(baseURL string, signer *svcauth.Signer) *Client {
+	return &Client{baseURL: baseURL, signer: signer, httpClient: &http.Client{Timeout: 3 * time.Second}}
 }
 
 type kycTierResponse struct {
@@ -38,6 +40,7 @@ func (c *Client) GetKYCTier(ctx context.Context, userID string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("building request: %w", err)
 	}
+	c.signer.SignRequest(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

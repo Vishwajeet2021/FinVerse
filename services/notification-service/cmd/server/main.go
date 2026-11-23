@@ -91,7 +91,7 @@ func main() {
 		Environment:    cfg.Environment,
 	})
 
-	srv := &http.Server{Addr: ":" + cfg.Port, Handler: router, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
+	srv := &http.Server{Addr: ":" + cfg.Port, Handler: router, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
 	go func() {
 		logger.Info("notification-service listening", zap.String("port", cfg.Port), zap.String("environment", cfg.Environment))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {

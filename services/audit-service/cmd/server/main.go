@@ -76,7 +76,7 @@ func main() {
 	router := transporthttp.NewRouter(transporthttp.RouterDeps{
 		Service: svc, Verifier: verifier, DB: db, Logger: logger, FrontendOrigin: cfg.FrontendBaseURL,
 	})
-	srv := &http.Server{Addr: ":" + cfg.Port, Handler: router, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
+	srv := &http.Server{Addr: ":" + cfg.Port, Handler: router, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
 	go func() {
 		logger.Info("audit-service listening", zap.String("port", cfg.Port), zap.String("environment", cfg.Environment))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
