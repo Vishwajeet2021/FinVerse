@@ -10,7 +10,7 @@
 </script>
 
 <div
-	class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 {className}"
+	class="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-200/60 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none {className}"
 >
 	{@render children()}
 </div>

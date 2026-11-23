@@ -30,3 +30,15 @@ export function updateMyProfile(patch: Partial<CustomerProfile>): Promise<Custom
 		body: patch
 	});
 }
+
+export function createMyProfile(input: {
+	fullName: string;
+	dob: string; // YYYY-MM-DD
+	pan: string;
+}): Promise<CustomerProfile> {
+	return apiRequest<CustomerProfile>(CUSTOMER_SERVICE_URL, '/api/v1/customers', {
+		method: 'POST',
+		auth: true,
+		body: input
+	});
+}

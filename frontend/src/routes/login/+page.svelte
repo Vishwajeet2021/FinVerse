@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { Alert, Button, Card, Input } from '$lib/components/ui';
+	import { Alert, Button, Card, Input, Logo } from '$lib/components/ui';
 	import { loginAndSetSession } from '$lib/stores/auth';
 	import { describeError } from '$lib/utils/errors';
 
@@ -25,9 +25,13 @@
 	}
 </script>
 
-<div class="flex min-h-screen items-center justify-center px-4 py-10">
+<div class="auth-backdrop flex min-h-screen flex-col items-center justify-center px-4 py-10">
+	<a href={resolve('/')} class="mb-6"><Logo /></a>
 	<Card class="w-full max-w-md">
 		<h1 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Log in</h1>
+		<p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+			Welcome back — enter your details.
+		</p>
 
 		<form class="mt-6 flex flex-col gap-4" onsubmit={handleSubmit}>
 			{#if formError}

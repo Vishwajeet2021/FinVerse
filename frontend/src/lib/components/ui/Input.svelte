@@ -35,7 +35,7 @@
 		bind:value
 		aria-invalid={error ? 'true' : undefined}
 		aria-describedby={error ? `${id}-error` : undefined}
-		class="rounded-md border px-3 py-2 text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:bg-slate-800 dark:text-slate-100 {error
+		class="rounded-lg border px-3 py-2 text-sm shadow-sm transition-shadow focus:ring-2 focus:ring-blue-500/60 focus:outline-none dark:bg-slate-800 dark:text-slate-100 {error
 			? 'border-red-500'
 			: 'border-slate-300 dark:border-slate-700'}"
 	/>
