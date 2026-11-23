@@ -1,0 +1,41 @@
+# Alert rules from docs/16-observability.md section 8. Locally these are evaluated
+# by Prometheus and visible at http://localhost:9090/alerts; there is no
+# Alertmanager, so nothing is paged (see docs/20-ai-dlc-phase3.md known gaps).
+groups:
+  - name: finverse
+    rules:
+      - alert: LedgerImbalance
+        expr: increase(finverse_ledger_balance_check_failures_total[5m]) > 0
+        labels: { severity: critical }
+        annotations:
+          summary: "Ledger rejected an unbalanced posting (NFR-DATA-3: must never happen)"
+
+      - alert: ServiceDown
+        expr: up{job="finverse"} == 0
+        for: 15s
+        labels: { severity: critical }
+        annotations:
+          summary: "{{ $labels.service }} is not answering /metrics scrapes"
+
+      - alert: DeadLetterQueueNotEmpty
+        expr: max by (stream, group) (finverse_eventbus_dlq_depth) > 0
+        for: 10s
+        labels: { severity: high }
+        annotations:
+          summary: "DLQ {{ $labels.stream }}/{{ $labels.group }} holds {{ $value }} message(s)"
+
+      - alert: FraudCheckLatencyHigh
+        expr: histogram_quantile(0.99, sum by (le) (rate(finverse_fraud_check_duration_seconds_bucket[5m]))) > 0.08
+        for: 5m
+        labels: { severity: high }
+        annotations:
+          summary: "Fraud CheckTransaction p99 above the 80 ms budget (NFR-PERF-4)"
+
+      - alert: HighErrorRate
+        expr: |
+          sum by (service) (rate(finverse_http_requests_total{status=~"5.."}[5m]))
+            / sum by (service) (rate(finverse_http_requests_total[5m])) > 0.05
+        for: 5m
+        labels: { severity: high }
+        annotations:
+          summary: "{{ $labels.service }} 5xx rate above 5% over 5 minutes"
