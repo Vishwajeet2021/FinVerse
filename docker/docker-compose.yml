@@ -380,8 +380,29 @@ services:
     volumes:
       - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+    depends_on:
+      - alertmanager
     ports:
       - "9090:9090"
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    command: --config.file=/etc/alertmanager/alertmanager.yml
+    volumes:
+      - ./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+    depends_on:
+      - alert-sink
+    restart: unless-stopped
+
+  # Local stand-in for a pager: prints each delivered alert (see observability/alert_sink.py).
+  alert-sink:
+    image: python:3.12-alpine
+    command: python -u /app/alert_sink.py
+    volumes:
+      - ./observability/alert_sink.py:/app/alert_sink.py:ro
     restart: unless-stopped
 
   loki:
