@@ -82,7 +82,7 @@ func main() {
 	if err != nil {
 		logger.Fatal("listening for gRPC", zap.Error(err))
 	}
-	grpcServer := grpc.NewServer(grpc.StatsHandler(telemetry.GRPCServerStats()))
+	grpcServer := grpc.NewServer(grpc.StatsHandler(telemetry.GRPCServerStats()), grpc.ChainUnaryInterceptor(sharedlogging.UnaryServerInterceptor(logger)))
 	fraudv1.RegisterFraudServiceServer(grpcServer, transportgrpc.NewServer(svc))
 	go func() {
 		logger.Info("fraud-service gRPC listening", zap.String("port", cfg.GRPCPort))

@@ -88,7 +88,7 @@ Status legend: `[ ]` not started, `[~]` in progress, `[x]` done.
 
 - [~] OpenTelemetry instrumentation across all Phase 1–4 services — tracing done for all 7 services + event hops, verified in Jaeger (13-span payment trace); metrics not yet. (Original text:) (if not already present incrementally — this phase is where it's verified end-to-end, not where it starts).
 - [x] Prometheus + Grafana dashboards per `16-observability.md §6` (Platform overview, Payment funnel + ledger health, Fraud/messaging/DLQ), with the section 8 alert rules loaded in Prometheus (no Alertmanager delivery yet). Verified live; see `docs/20-ai-dlc-phase3.md`.
-- [~] Loki + Promtail centralized logging: working for all containers, HTTP log lines carry `trace_id`; gRPC/consumer logs do not yet (see `docs/20-ai-dlc-phase3.md`).
+- [x] Loki + Promtail centralized logging: all containers; HTTP, gRPC and consumer-failure log lines carry `trace_id`, linked to Jaeger from Grafana. Verified live (see `docs/20-ai-dlc-phase3.md`).
 - [ ] Alerting rules per `16-observability.md §8` wired to a real notification channel.
 - [~] Formal k6 load testing suite — `loadtest/payments.js` (106 req/s, p95 228 ms, 0 errors, zero drift on one host; see `docs/20-ai-dlc-phase3.md`); no spike/soak yet. (Original text:) (automatable, not just the manual Phase 2 run) against a dedicated temporary stack.
 - [ ] Backup/restore drill executed and documented (`14-aws-infrastructure.md §10`).

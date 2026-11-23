@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/finverse/shared/logging"
 	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -254,14 +255,14 @@ func (c *Consumer) process(ctx context.Context, messages []redis.XMessage, handl
 		if err != nil {
 			if IsPermanent(err) {
 				c.logger.Error("handler failed permanently, dead-lettering",
-					zap.String("event_id", env.EventID), zap.String("event_type", env.EventType), zap.Error(err))
+					append(logging.TraceFields(hctx), zap.String("event_id", env.EventID), zap.String("event_type", env.EventType), zap.Error(err))...)
 				_ = c.deadLetter(ctx, m.ID, "permanent failure: "+err.Error(), 1)
 				continue
 			}
 			c.retried.Add(1)
 			c.count("retried")
 			c.logger.Warn("handler failed, leaving unacked for retry",
-				zap.String("event_id", env.EventID), zap.String("event_type", env.EventType), zap.Error(err))
+				append(logging.TraceFields(hctx), zap.String("event_id", env.EventID), zap.String("event_type", env.EventType), zap.Error(err))...)
 			continue // left un-acked; reclaimStalePending retries after backoff or dead-letters it
 		}
 
