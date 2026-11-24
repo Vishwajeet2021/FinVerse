@@ -13,3 +13,8 @@ export const WALLET_SERVICE_URL =
 
 export const PAYMENT_SERVICE_URL =
 	import.meta.env.VITE_PAYMENT_SERVICE_URL ?? 'http://localhost:8085';
+
+export const ADMIN_SERVICE_URL = import.meta.env.VITE_ADMIN_SERVICE_URL ?? 'http://localhost:8089';
+
+export const REPORTING_SERVICE_URL =
+	import.meta.env.VITE_REPORTING_SERVICE_URL ?? 'http://localhost:8090';

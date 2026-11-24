@@ -9,6 +9,7 @@
 		openAccount,
 		type Account
 	} from '$lib/api/accounts';
+	import { listActions } from '$lib/api/admin';
 	import { createMyProfile, getMyProfile } from '$lib/api/customers';
 	import { getPayment, initiatePayment, type Payment, type Rail } from '$lib/api/payments';
 	import { RAIL_OPTIONS, describePaymentFailure } from '$lib/utils/payments';
@@ -31,6 +32,15 @@
 		queryKey: ['accounts'],
 		queryFn: listMyAccounts,
 		retry: false
+	}));
+
+	// Whether to offer the admin console is the server's call, not something read from the token:
+	// the cheapest admin endpoint answers 403 for everyone else.
+	const adminProbe = createQuery(() => ({
+		queryKey: ['admin', 'probe'],
+		queryFn: () => listActions(1),
+		retry: false,
+		staleTime: 5 * 60_000
 	}));
 
 	let selectedAccountId = $state<string | null>(null);
@@ -221,6 +231,10 @@
 	>
 		<Logo size="sm" />
 		<div class="flex items-center gap-2">
+			{#if adminProbe.isSuccess}
+				<Button variant="secondary" onclick={() => goto(resolve('/admin'))}>Admin console</Button>
+			{/if}
+			<Button variant="secondary" onclick={() => goto(resolve('/statements'))}>Statements</Button>
 			<Button variant="secondary" onclick={() => goto(resolve('/scheduled'))}>
 				Scheduled &amp; recurring
 			</Button>
