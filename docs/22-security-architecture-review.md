@@ -129,3 +129,10 @@ Two things the verification caught that tests had not:
 - Product services from Phase 6: Card, Loan, Admin, Reporting, Search, Analytics. Each needs
   functional requirements confirmed in docs 03/07 before I build it.
 - Per-service signing keys, token revocation lists, WAF, and a formal penetration test.
+
+## 7. Addendum (docs/23): admin surface and freeze enforcement
+
+- A review of the account freeze (FR-ACC-6) found that no service enforced it: a frozen account could still pay and fund wallet top-ups. Closed in `docs/23` D-A7 (Payment at initiation and settlement, Wallet at top-up, fail closed, 3 s cache bounding the latency).
+- New privileged surface: Admin Service and its scopes. The top open item for it is **MFA for administrators**, which Auth does not have; see `docs/23` section 6.
+- New internal routes are protected by the service-token allow-lists from D-S1: `/internal/admin/accounts/*` (admin-service only), `/internal/account-status/:id` (payment-service, wallet-service only). `reporting-service` was added to Transaction's gRPC allow-list.
+- Reports are downloaded only through the authenticated API, with a stored SHA-256 verified on every download and storage keys restricted to `<uuid>.csv`.

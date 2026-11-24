@@ -55,8 +55,9 @@ Status legend: `[ ]` not started, `[~]` in progress, `[x]` done.
 - [~] (Redis Streams chosen; outbox relay exists for Transaction/Account/Payment/Wallet, not yet Customer/Auth) EventBridge-equivalent wired locally (LocalStack or the interim substitute decided in `18-development-workflow.md §7`), outbox relay implemented for Transaction/Account/Payment/Customer/Auth.
 - [~] Notification Service: consumes Payment/Account events, email via a logging sender, idempotent, retry with exponential backoff + per-service DLQ with inspect/replay/discard admin API — verified live (`docs/20-ai-dlc-phase3.md`). Gaps: SMS/push, preferences, customer inbox for payment events (FR-NOTIF partially).
 - [x] Fraud Service (basic): single-transfer/daily/velocity/review rules, `CheckTransaction` gRPC wired into Payment's synchronous path (fail-closed by default), REVIEW/DENY cases with analyst list/resolve and `FraudCaseOpened`/`Resolved` events (FR-FRAUD-1, -2, -5). Verified live; CheckTransaction p99 9.1 ms vs the 80 ms NFR-PERF-4 budget (`docs/20-ai-dlc-phase3.md`).
-- [x] Audit Service: consumes 13 event types, append-only (DB trigger-enforced), idempotent, read-only query API (FR-AUDIT-1 to -4). Verified live. Not yet: monthly partitioning, admin-action events.
+- [x] Audit Service: consumes 13 event types, append-only (DB trigger-enforced), idempotent, read-only query API (FR-AUDIT-1 to -4). Verified live. Admin-action events (`AdminActionRequested`/`Resolved`) are recorded since `docs/23`. Not yet: monthly partitioning.
 - [x] Payment rail simulation (UPI/IMPS/NEFT/RTGS limits, PROCESSING->COMPLETED/FAILED with per-rail delays, NEFT batches), scheduled payments, standing instructions (daily/weekly/monthly, pause/resume/cancel), caller-ownership check on `fromAccountId` (FR-PAY-1 to -3). Verified live; see `docs/20-ai-dlc-phase3.md`. Gaps: RTGS happy path and failure injection only unit-tested.
+- [x] Freeze enforcement (`docs/23` D-A7): a frozen or closed account can no longer pay or fund a wallet top-up (FR-ACC-6 was documented but unenforced before this). Payment checks at initiation and settlement, Wallet at top-up, fail closed.
 - [x] Security hardening pass (docs/22): headers and body limits, service-to-service tokens, payment ownership, validation, rate limiting, least-privilege DB roles, secrets from env; 27 live checks in `scripts/security_check.py`. Gaps listed in docs/22 section 5a.
 - [ ] Contract tests (Pact) stood up for the gRPC calls that now exist (Payment↔Fraud, Payment↔Transaction).
 
@@ -107,9 +108,9 @@ Status legend: `[ ]` not started, `[~]` in progress, `[x]` done.
 - [ ] Card Service (FR-CARD-1 to -5).
 - [ ] Loan Service, full EMI lifecycle (FR-LOAN-1 to -7).
 - [ ] Fraud Service, advanced: case management UI (via Admin), risk score tuning, geo/device checks (FR-FRAUD-3, -4, -6).
-- [ ] Admin Service: full dashboard, freeze/unfreeze, case resolution, all proxying with audit guarantees (FR-ADMIN-1 to -4).
+- [~] Admin Service (`docs/23`): dashboard, freeze/unfreeze (admin hold a customer cannot lift), fraud case resolution and KYC review forwarding the admin's own token, audit-then-act with an immutable `admin_actions` table, `/admin` console. Verified live (`scripts/admin_reporting_demo.py`). Not done: admin search (FR-ADMIN-1, needs Search), active-customers metric, **admin MFA**.
 - [ ] Analytics Service (ClickHouse) — optional, explicitly called out as "later" in the original vision; build only if it earns its place over, e.g., extending Reporting further.
-- [ ] Reporting Service: statements, tax-relevant reports (FR-REPORT-1, -2).
+- [~] Reporting Service (`docs/23`): asynchronous CSV statements (closing balance verified equal to the live ledger balance), owner-only authenticated download, admin fraud summary, `/statements` page. Not done: PDF, interest/tax report, daily closing summary, S3 storage, balance-as-of for very large accounts.
 - [ ] Search Service: cross-entity admin search (FR-SEARCH-1, -2).
 - [ ] Stretch, evaluate before committing (each needs its own scoped addition to `02`–`08` before starting, per `00-master-ai-instructions.md §4.5`): an AI assistant for transaction insights (a natural fit for an LLM-backed feature given the audience this project targets); multi-tenancy (only if a concrete narrative reason emerges — not a default "more impressive" addition).
 
