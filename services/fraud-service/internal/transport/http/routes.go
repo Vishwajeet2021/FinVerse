@@ -42,7 +42,7 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 
 	v1 := r.Group("/api/v1/fraud")
 	v1.Use(deps.Verifier.Middleware())
-	v1.GET("/cases", jwtauth.RequireScopes("fraud:read"), deps.Handler.ListCases)
-	v1.POST("/cases/:id/resolve", jwtauth.RequireScopes("fraud:resolve"), deps.Handler.ResolveCase)
+	v1.GET("/cases", jwtauth.RequireScopes("fraud:read"), jwtauth.RequireMFA(), deps.Handler.ListCases)
+	v1.POST("/cases/:id/resolve", jwtauth.RequireScopes("fraud:resolve"), jwtauth.RequireMFA(), deps.Handler.ResolveCase)
 	return r
 }

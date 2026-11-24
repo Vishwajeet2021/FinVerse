@@ -48,7 +48,7 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 	// (docs/07-microservice-specifications.md section 12) - records arrive only via the bus.
 	v1 := r.Group("/api/v1/audit")
 	v1.Use(deps.Verifier.Middleware())
-	v1.GET("/records", jwtauth.RequireScopes("audit:read"), func(c *gin.Context) {
+	v1.GET("/records", jwtauth.RequireScopes("audit:read"), jwtauth.RequireMFA(), func(c *gin.Context) {
 		limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 		before, _ := strconv.ParseInt(c.Query("beforeId"), 10, 64)
 		recs, err := deps.Service.List(c.Request.Context(), service.Query{EventType: c.Query("eventType"), BeforeID: before, Limit: limit})

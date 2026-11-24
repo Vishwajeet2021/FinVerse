@@ -47,6 +47,8 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 	h := deps.Handler
 	v1 := r.Group("/api/v1/admin")
 	v1.Use(deps.Verifier.Middleware())
+	// Every admin route needs a session that passed the second factor (docs/24 D-M8).
+	v1.Use(jwtauth.RequireMFA())
 
 	// Commands are throttled per administrator and fail closed if Redis is down: a privileged
 	// action is worth a brief refusal, and the limit bounds the damage of a stolen session.

@@ -56,3 +56,18 @@ func RequireScopes(scopes ...string) gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// RequireMFA rejects the request with 403 unless the access token was issued to a session that
+// passed the second factor (the "mfa" claim). Auth Service never issues a token to an internal
+// role without it, so on privileged routes this is defence in depth: it keeps those routes closed
+// even if a token were ever minted by a path that skipped the check, and it makes the rule
+// visible where the privileged action is, not only in the issuer (docs/24-admin-mfa.md D-M8).
+func RequireMFA() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !ClaimsFromContext(c).MFA {
+			apiresponse.Forbidden(c, "MFA_REQUIRED", "This action requires two-step verification. Please log in again and complete it.")
+			return
+		}
+		c.Next()
+	}
+}

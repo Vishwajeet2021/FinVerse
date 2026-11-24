@@ -49,7 +49,7 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 	{
 		v1.GET("", jwtauth.RequireScopes("notifications:read"), deps.Handler.ListMine)
 
-		admin := v1.Group("/admin", jwtauth.RequireScopes("notifications:admin"))
+		admin := v1.Group("/admin", jwtauth.RequireScopes("notifications:admin"), jwtauth.RequireMFA())
 		admin.GET("/all", deps.Handler.ListAll)
 		admin.GET("/stats", deps.Handler.Stats)
 		admin.GET("/dlq", deps.Handler.DLQList)

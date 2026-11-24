@@ -58,6 +58,6 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 	v1.GET("/:id", jwtauth.RequireScopes("reports:read"), h.Get)
 	v1.GET("/:id/download", jwtauth.RequireScopes("reports:read"), h.Download)
 	v1.POST("/statements", jwtauth.RequireScopes("reports:write"), throttle, h.RequestStatement)
-	v1.POST("/fraud-summary", jwtauth.RequireScopes("reports:admin"), throttle, h.RequestFraudSummary)
+	v1.POST("/fraud-summary", jwtauth.RequireScopes("reports:admin"), jwtauth.RequireMFA(), throttle, h.RequestFraudSummary)
 	return r
 }

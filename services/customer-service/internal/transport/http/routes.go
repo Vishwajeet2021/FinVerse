@@ -81,7 +81,7 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 
 		// Admin-only, not an ownership route by design — see the comment on
 		// Handler.ReviewKYC in handlers.go.
-		v1.POST("/:id/kyc/review", jwtauth.RequireScopes("customers:kyc:review"), deps.Handler.ReviewKYC)
+		v1.POST("/:id/kyc/review", jwtauth.RequireScopes("customers:kyc:review"), jwtauth.RequireMFA(), deps.Handler.ReviewKYC)
 	}
 
 	return r
