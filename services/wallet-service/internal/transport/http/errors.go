@@ -8,6 +8,10 @@ import (
 
 func writeDomainError(c *gin.Context, err error) {
 	switch err {
+	case domain.ErrFundingAccountFrozen:
+		apiresponse.UnprocessableEntity(c, "ACCOUNT_FROZEN", "The account that funds this wallet is frozen. Please contact support.")
+	case domain.ErrFundingAccountClosed:
+		apiresponse.UnprocessableEntity(c, "ACCOUNT_CLOSED", "The account that funds this wallet is closed.")
 	case domain.ErrWalletNotFound:
 		apiresponse.NotFound(c, "WALLET_NOT_FOUND", "Wallet not found.")
 	case domain.ErrWalletAlreadyExists:

@@ -50,6 +50,15 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 	r.GET("/ready", ReadyHandler(deps.DB))
 	r.GET("/internal/accounts/by-number/:accountNumber", deps.ServiceVerifier.Middleware("payment-service"), deps.Handler.ResolveAccountNumber)
 
+	r.GET("/internal/account-status/:id", deps.ServiceVerifier.Middleware("payment-service", "wallet-service"), deps.Handler.AccountStatus)
+
+	admin := r.Group("/internal/admin/accounts", deps.ServiceVerifier.Middleware("admin-service"))
+	{
+		admin.GET("/:id", deps.Handler.AdminGetAccount)
+		admin.POST("/:id/freeze", deps.Handler.AdminFreeze)
+		admin.POST("/:id/unfreeze", deps.Handler.AdminUnfreeze)
+	}
+
 	v1 := r.Group("/api/v1/accounts")
 	v1.Use(deps.Verifier.Middleware())
 	{

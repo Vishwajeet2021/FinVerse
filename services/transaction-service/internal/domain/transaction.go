@@ -42,6 +42,9 @@ type Leg struct {
 	AmountMinor     int64
 	Direction       Direction
 	Currency        string
+	// CreatedAt is the owning transaction's time. Set only on legs read back through account
+	// history (statements need it); zero on legs being posted.
+	CreatedAt time.Time
 }
 
 // Transaction is the aggregate root of the ledger — docs/06-domain-driven-design.md §4.

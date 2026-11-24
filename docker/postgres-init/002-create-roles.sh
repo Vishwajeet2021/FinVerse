@@ -11,7 +11,7 @@
 set -eu
 
 for pair in auth:AUTH customer:CUSTOMER transaction:TRANSACTION account:ACCOUNT wallet:WALLET \
-            payment:PAYMENT notification:NOTIFICATION audit:AUDIT fraud:FRAUD; do
+            payment:PAYMENT notification:NOTIFICATION audit:AUDIT fraud:FRAUD admin:ADMIN reporting:REPORTING; do
   name=${pair%%:*}
   var=${pair##*:}_DB_PASSWORD
   eval "pw=\${$var:-}"

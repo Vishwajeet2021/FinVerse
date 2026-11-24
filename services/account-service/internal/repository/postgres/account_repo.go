@@ -111,14 +111,22 @@ func (r *AccountRepository) GetBalance(ctx context.Context, accountID string) (*
 	return fromBalanceModel(&m), nil
 }
 
-func (r *AccountRepository) UpdateStatusWithOutbox(ctx context.Context, accountID string, status domain.AccountStatus, eventType string, eventPayload any) error {
+func (r *AccountRepository) UpdateStatusWithOutbox(ctx context.Context, accountID string, status domain.AccountStatus, frozenBy domain.Actor, eventType string, eventPayload any) error {
 	payloadJSON, err := json.Marshal(eventPayload)
 	if err != nil {
 		return fmt.Errorf("marshaling outbox payload: %w", err)
 	}
 
+	// frozen_by is meaningful only while FROZEN; any other transition clears it.
+	var frozenByVal *string
+	if status == domain.StatusFrozen && frozenBy != "" {
+		v := string(frozenBy)
+		frozenByVal = &v
+	}
+
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&accountModel{}).Where("id = ?", accountID).Update("status", string(status)).Error; err != nil {
+		if err := tx.Model(&accountModel{}).Where("id = ?", accountID).
+			Updates(map[string]any{"status": string(status), "frozen_by": frozenByVal}).Error; err != nil {
 			return fmt.Errorf("updating account status: %w", err)
 		}
 		outbox := &outboxModel{ID: uuid.NewString(), EventType: eventType, Payload: payloadJSON, CreatedAt: time.Now(), TraceParent: telemetry.TraceParent(ctx)}

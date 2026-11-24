@@ -38,6 +38,7 @@ Prerequisites: Go 1.26+, Node 22+, Docker Desktop.
    ```
    Compose refuses to start without `docker/.env`. If you have a Postgres volume from before this change, recreate it (`docker compose down -v`, which deletes local data) so the per-service database roles are created. Published ports bind to localhost only.
    Auth Service comes up on `:8081`, Customer Service on `:8082`. Both apply their own database migrations automatically on startup — no manual migration step is needed locally.
+   Admin Service is on `:8089` and Reporting Service on `:8090` (see [docs/23-admin-and-reporting.md](docs/23-admin-and-reporting.md)). To try them end to end: `python loadtest/setup.py 4` once, then `python scripts/admin_reporting_demo.py`.
 
 2. Run the frontend separately (a hot-reloading dev server gains nothing from containerization):
    ```

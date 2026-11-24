@@ -18,6 +18,10 @@ func writeDomainError(c *gin.Context, err error) {
 		apiresponse.BadRequest(c, "SAME_ACCOUNT", "You can't transfer to the same account.")
 	case errors.Is(err, domain.ErrRecipientAccountNotFound):
 		apiresponse.NotFound(c, "RECIPIENT_ACCOUNT_NOT_FOUND", "No account exists with that account number.")
+	case errors.Is(err, domain.ErrSourceAccountFrozen):
+		apiresponse.UnprocessableEntity(c, "ACCOUNT_FROZEN", "This account is frozen and cannot make payments. Please contact support.")
+	case errors.Is(err, domain.ErrSourceAccountClosed):
+		apiresponse.UnprocessableEntity(c, "ACCOUNT_CLOSED", "This account is closed.")
 	case errors.Is(err, domain.ErrRailLimit):
 		apiresponse.BadRequest(c, "RAIL_LIMIT", err.Error())
 	case errors.Is(err, domain.ErrUnknownRail):

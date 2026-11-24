@@ -19,6 +19,7 @@ func scopesForRole(role domain.Role) []string {
 			"wallets:read", "wallets:manage",
 			"payments:read", "payments:write",
 			"notifications:read",
+			"reports:read", "reports:write",
 		}
 	case domain.RoleSupport:
 		return []string{"customers:read", "accounts:read"}
@@ -32,6 +33,9 @@ func scopesForRole(role domain.Role) []string {
 			"accounts:read", "accounts:manage",
 			"notifications:read", "notifications:admin",
 			"audit:read", "fraud:read", "fraud:resolve",
+			// docs/23: console, admin-initiated freezes, own statements and operational reports.
+			"admin:dashboard:read", "admin:accounts:freeze",
+			"reports:read", "reports:write", "reports:admin",
 		}
 	default:
 		return nil

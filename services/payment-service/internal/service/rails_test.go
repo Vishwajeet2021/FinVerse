@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -209,5 +210,78 @@ func TestSettleDueRecipientGoneFailsImmediately(t *testing.T) {
 	_, _ = svc.SettleDue(context.Background())
 	if repo.byID[p.ID].Status != domain.StatusFailed || len(ledger.calls) != 0 {
 		t.Fatalf("status %s, ledger calls %d", repo.byID[p.ID].Status, len(ledger.calls))
+	}
+}
+
+func TestFrozenAccountCannotInitiateAnyPayment(t *testing.T) {
+	svc, repo, ledger, fraud, _ := newRailService(t)
+	resolver := newFakeAccountResolver()
+	resolver.debit["acct-1"] = domain.ErrSourceAccountFrozen
+	svc.account = resolver
+
+	for rail, amount := range map[domain.Rail]int64{domain.RailInternal: 100, domain.RailUPI: 100, domain.RailRTGS: 200_000_00} {
+		_, err := svc.InitiatePaymentOnRail(context.Background(), rail, "acct-1", "acct-2", amount, "k-"+string(rail))
+		if !errors.Is(err, domain.ErrSourceAccountFrozen) {
+			t.Errorf("%s: err = %v, want ErrSourceAccountFrozen", rail, err)
+		}
+	}
+	if len(repo.byID) != 0 || len(ledger.calls) != 0 || fraud.calls != 0 {
+		t.Errorf("a refused payment must leave nothing behind: payments=%d ledger=%d fraud=%d", len(repo.byID), len(ledger.calls), fraud.calls)
+	}
+}
+
+func TestClosedAccountCannotPay(t *testing.T) {
+	svc, _, _, _, _ := newRailService(t)
+	resolver := newFakeAccountResolver()
+	resolver.debit["acct-1"] = domain.ErrSourceAccountClosed
+	svc.account = resolver
+	if _, err := svc.InitiatePayment(context.Background(), "acct-1", "acct-2", 100, "k"); !errors.Is(err, domain.ErrSourceAccountClosed) {
+		t.Errorf("err = %v", err)
+	}
+}
+
+func TestUnknownAccountStateFailsClosed(t *testing.T) {
+	svc, repo, ledger, _, _ := newRailService(t)
+	resolver := newFakeAccountResolver()
+	resolver.debit["acct-1"] = errors.New("account-service unreachable")
+	svc.account = resolver
+	if _, err := svc.InitiatePayment(context.Background(), "acct-1", "acct-2", 100, "k"); err == nil {
+		t.Fatal("a payment was accepted although the account state could not be checked")
+	}
+	if len(repo.byID) != 0 || len(ledger.calls) != 0 {
+		t.Error("nothing may be recorded or posted when the account state is unknown")
+	}
+}
+
+func TestFreezeAfterAcceptanceStopsSettlement(t *testing.T) {
+	svc, repo, ledger, _, c := newRailService(t)
+	resolver := newFakeAccountResolver()
+	svc.account = resolver
+	p, err := svc.InitiatePaymentOnRail(context.Background(), domain.RailUPI, "acct-1", "acct-2", 1_000, "k-late")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolver.debit["acct-1"] = domain.ErrSourceAccountFrozen // frozen while the payment is clearing
+	c.t = c.t.Add(3 * time.Second)
+	_, _ = svc.SettleDue(context.Background())
+	got := repo.byID[p.ID]
+	if got.Status != domain.StatusFailed || got.FailureReason == nil || !strings.HasPrefix(*got.FailureReason, "ACCOUNT_FROZEN") {
+		t.Fatalf("payment = %+v", got)
+	}
+	if len(ledger.calls) != 0 {
+		t.Error("money moved from a frozen account")
+	}
+}
+
+func TestUnknownStateAtSettlementRetriesInsteadOfPosting(t *testing.T) {
+	svc, repo, ledger, _, c := newRailService(t)
+	resolver := newFakeAccountResolver()
+	svc.account = resolver
+	p, _ := svc.InitiatePaymentOnRail(context.Background(), domain.RailUPI, "acct-1", "acct-2", 1_000, "k-unknown")
+	resolver.debit["acct-1"] = errors.New("account-service unreachable")
+	c.t = c.t.Add(3 * time.Second)
+	_, _ = svc.SettleDue(context.Background())
+	if repo.byID[p.ID].Status == domain.StatusCompleted || len(ledger.calls) != 0 {
+		t.Fatalf("settled blind: status=%s ledger calls=%d", repo.byID[p.ID].Status, len(ledger.calls))
 	}
 }

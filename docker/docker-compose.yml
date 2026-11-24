@@ -23,6 +23,8 @@ services:
       NOTIFICATION_DB_PASSWORD: ${NOTIFICATION_DB_PASSWORD:?missing in docker/.env}
       AUDIT_DB_PASSWORD: ${AUDIT_DB_PASSWORD:?missing in docker/.env}
       FRAUD_DB_PASSWORD: ${FRAUD_DB_PASSWORD:?missing in docker/.env}
+      ADMIN_DB_PASSWORD: ${ADMIN_DB_PASSWORD:?missing in docker/.env}
+      REPORTING_DB_PASSWORD: ${REPORTING_DB_PASSWORD:?missing in docker/.env}
       POSTGRES_DB: finverse
     ports:
       - "127.0.0.1:5432:5432"
@@ -207,6 +209,7 @@ services:
       WALLET_DATABASE_URL: postgres://wallet_svc:${WALLET_DB_PASSWORD}@postgres:5432/wallet_db?sslmode=disable
       REDIS_ADDR: redis:6379
       TRANSACTION_SERVICE_GRPC_ADDR: transaction-service:9091
+      ACCOUNT_SERVICE_URL: http://account-service:8083
       AUTH_JWKS_URL: http://auth-service:8081/.well-known/jwks.json
       AUTH_JWT_ISSUER: https://auth.finverse.local
       AUTH_JWT_AUDIENCE: finverse-api
@@ -222,6 +225,8 @@ services:
       auth-service:
         condition: service_healthy
       transaction-service:
+        condition: service_healthy
+      account-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8084/health"]
@@ -394,6 +399,92 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  admin-service:
+    build:
+      context: ..
+      dockerfile: services/admin-service/Dockerfile
+    ports:
+      - "127.0.0.1:8089:8089"
+      - "[::1]:8089:8089"
+    environment:
+      SERVICE_AUTH_KEY: ${SERVICE_AUTH_KEY:?missing in docker/.env}
+      PORT: "8089"
+      ADMIN_DATABASE_URL: postgres://admin_svc:${ADMIN_DB_PASSWORD}@postgres:5432/admin_db?sslmode=disable
+      REDIS_ADDR: redis:6379
+      ACCOUNT_SERVICE_URL: http://account-service:8083
+      FRAUD_SERVICE_URL: http://fraud-service:8088
+      CUSTOMER_SERVICE_URL: http://customer-service:8082
+      PROMETHEUS_URL: http://prometheus:9090
+      AUTH_JWKS_URL: http://auth-service:8081/.well-known/jwks.json
+      AUTH_JWT_ISSUER: https://auth.finverse.local
+      AUTH_JWT_AUDIENCE: finverse-api
+      FRONTEND_BASE_URL: http://localhost:5173
+      LOG_LEVEL: debug
+      ENVIRONMENT: development
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      account-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8089/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  reporting-service:
+    build:
+      context: ..
+      dockerfile: services/reporting-service/Dockerfile
+    ports:
+      - "127.0.0.1:8090:8090"
+      - "[::1]:8090:8090"
+    environment:
+      SERVICE_AUTH_KEY: ${SERVICE_AUTH_KEY:?missing in docker/.env}
+      PORT: "8090"
+      REPORTING_DATABASE_URL: postgres://reporting_svc:${REPORTING_DB_PASSWORD}@postgres:5432/reporting_db?sslmode=disable
+      REDIS_ADDR: redis:6379
+      TRANSACTION_SERVICE_GRPC_ADDR: transaction-service:9091
+      ACCOUNT_SERVICE_URL: http://account-service:8083
+      FRAUD_SERVICE_URL: http://fraud-service:8088
+      REPORT_DIR: /var/lib/finverse/reports
+      # Loosened only so scripts/admin_reporting_demo.py can request several reports quickly.
+      RATE_LIMIT_REPORTS_PER_MIN: "1000"
+      AUTH_JWKS_URL: http://auth-service:8081/.well-known/jwks.json
+      AUTH_JWT_ISSUER: https://auth.finverse.local
+      AUTH_JWT_AUDIENCE: finverse-api
+      FRONTEND_BASE_URL: http://localhost:5173
+      LOG_LEVEL: debug
+      ENVIRONMENT: development
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+    volumes:
+      - report_files:/var/lib/finverse/reports
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      transaction-service:
+        condition: service_healthy
+      account-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8090/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
   # Phase 5 pulled forward for tracing (NFR-OBS-1): Jaeger UI on :16686,
   # OTLP/HTTP ingest on :4318. Services never depend on it being up.
   jaeger:
@@ -500,3 +591,4 @@ volumes:
   postgres_data:
   auth_keys:
   customer_documents:
+  report_files:

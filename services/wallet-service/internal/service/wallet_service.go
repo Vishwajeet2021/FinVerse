@@ -6,6 +6,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,12 +15,13 @@ import (
 )
 
 type WalletService struct {
-	repo   WalletRepository
-	ledger LedgerClient
+	repo     WalletRepository
+	ledger   LedgerClient
+	accounts AccountDebitChecker
 }
 
-func NewWalletService(repo WalletRepository, ledger LedgerClient) *WalletService {
-	return &WalletService{repo: repo, ledger: ledger}
+func NewWalletService(repo WalletRepository, ledger LedgerClient, accounts AccountDebitChecker) *WalletService {
+	return &WalletService{repo: repo, ledger: ledger, accounts: accounts}
 }
 
 // ProvisionWallet implements FR-WAL-1: exactly one wallet per customer. The
@@ -82,6 +84,14 @@ func (s *WalletService) TopUp(ctx context.Context, walletID string, amountMinor 
 	}
 	if !wallet.IsActive() {
 		return domain.ErrWalletClosed
+	}
+	// The funding account is debited, so it must be allowed to be (FR-ACC-6). Domain errors are
+	// returned as they are; an unknown state refuses the top-up instead of assuming it is fine.
+	if err := s.accounts.CheckCanDebit(ctx, wallet.FundingAccountID); err != nil {
+		if errors.Is(err, domain.ErrFundingAccountFrozen) || errors.Is(err, domain.ErrFundingAccountClosed) {
+			return err
+		}
+		return fmt.Errorf("checking the funding account: %w", err)
 	}
 
 	legs := []LedgerLeg{

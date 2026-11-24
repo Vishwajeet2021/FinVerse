@@ -11,3 +11,5 @@ CREATE DATABASE payment_db;
 CREATE DATABASE notification_db;
 CREATE DATABASE audit_db;
 CREATE DATABASE fraud_db;
+CREATE DATABASE admin_db;
+CREATE DATABASE reporting_db;

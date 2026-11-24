@@ -55,6 +55,10 @@ var (
 	ErrInvalidAmount            = errors.New("amount must be a positive number of minor units")
 	ErrSameAccount              = errors.New("cannot transfer an account to itself")
 	ErrRecipientAccountNotFound = errors.New("no account exists with that account number")
+	// ErrSourceAccountFrozen / ErrSourceAccountClosed: the paying account may not be debited
+	// (FR-ACC-6). Without this check a freeze would not stop money leaving the account.
+	ErrSourceAccountFrozen = errors.New("the paying account is frozen")
+	ErrSourceAccountClosed = errors.New("the paying account is closed")
 )
 
 // MaxAmountMinor is the largest single amount (INR 1 crore) accepted by any money-moving path.

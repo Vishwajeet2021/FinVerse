@@ -111,12 +111,16 @@ func (f *fakeAccountRepository) GetBalance(_ context.Context, accountID string) 
 	return &cp, nil
 }
 
-func (f *fakeAccountRepository) UpdateStatusWithOutbox(_ context.Context, accountID string, status domain.AccountStatus, eventType string, payload any) error {
+func (f *fakeAccountRepository) UpdateStatusWithOutbox(_ context.Context, accountID string, status domain.AccountStatus, frozenBy domain.Actor, eventType string, payload any) error {
 	a, ok := f.accounts[accountID]
 	if !ok {
 		return domain.ErrAccountNotFound
 	}
 	a.Status = status
+	a.FrozenBy = ""
+	if status == domain.StatusFrozen {
+		a.FrozenBy = frozenBy
+	}
 	f.outboxEvents = append(f.outboxEvents, outboxEntry{EventType: eventType, Payload: payload})
 	return nil
 }

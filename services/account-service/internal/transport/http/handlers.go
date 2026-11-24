@@ -181,6 +181,51 @@ func (h *Handler) Unfreeze(c *gin.Context) {
 	apiresponse.OK(c, gin.H{"frozen": false})
 }
 
+// AccountStatus lets Payment Service ask whether an account may be debited, without a user
+// token (scheduled and standing payments run with none). It reveals only the status.
+func (h *Handler) AccountStatus(c *gin.Context) {
+	a, err := h.accounts.GetAccount(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		writeDomainError(c, err)
+		return
+	}
+	apiresponse.OK(c, gin.H{"id": a.ID, "status": string(a.Status)})
+}
+
+// AdminFreeze and AdminUnfreeze are internal, service-token protected (Admin Service only).
+// The human operator's identity and the audit record live in Admin Service; here the
+// account just records that an administrator, not the customer, holds the freeze.
+func (h *Handler) AdminFreeze(c *gin.Context) {
+	var req freezeRequest
+	_ = c.ShouldBindJSON(&req)
+	if err := h.accounts.FreezeAs(c.Request.Context(), c.Param("id"), req.Reason, domain.ActorAdmin); err != nil {
+		writeDomainError(c, err)
+		return
+	}
+	apiresponse.OK(c, gin.H{"frozen": true})
+}
+
+func (h *Handler) AdminUnfreeze(c *gin.Context) {
+	if err := h.accounts.UnfreezeAs(c.Request.Context(), c.Param("id"), domain.ActorAdmin); err != nil {
+		writeDomainError(c, err)
+		return
+	}
+	apiresponse.OK(c, gin.H{"frozen": false})
+}
+
+// AdminGetAccount lets Admin Service look an account up by id without being a holder.
+func (h *Handler) AdminGetAccount(c *gin.Context) {
+	a, err := h.accounts.GetAccount(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		writeDomainError(c, err)
+		return
+	}
+	apiresponse.OK(c, gin.H{
+		"id": a.ID, "customerId": a.CustomerID, "accountNumber": a.AccountNumber,
+		"productType": string(a.ProductType), "status": string(a.Status), "frozenBy": string(a.FrozenBy),
+	})
+}
+
 // Close implements FR-ACC-5's terminal transition. Unlike Freeze/Unfreeze,
 // there's no request body -- there's no "reason" or reversible state to
 // capture, only a one-way door gated by domain.ErrAccountHasBalance.

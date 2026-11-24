@@ -14,7 +14,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TARGET = ROOT / "docker" / ".env"
-SERVICES = ["AUTH", "CUSTOMER", "TRANSACTION", "ACCOUNT", "WALLET", "PAYMENT", "NOTIFICATION", "AUDIT", "FRAUD"]
+SERVICES = ["AUTH", "CUSTOMER", "TRANSACTION", "ACCOUNT", "WALLET", "PAYMENT", "NOTIFICATION", "AUDIT", "FRAUD", "ADMIN", "REPORTING"]
 
 
 def main() -> None:

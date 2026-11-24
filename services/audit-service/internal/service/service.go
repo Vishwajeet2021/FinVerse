@@ -22,6 +22,7 @@ var Streams = []string{
 	"AccountOpened", "AccountFrozen", "AccountUnfrozen", "AccountClosed",
 	"WalletProvisioned", "WalletToppedUp", "WalletTransferred",
 	"FraudCaseOpened", "FraudCaseResolved",
+	"AdminActionRequested", "AdminActionResolved",
 }
 
 type Record struct {

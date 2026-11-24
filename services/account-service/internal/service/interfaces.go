@@ -45,7 +45,8 @@ type AccountRepository interface {
 
 	// UpdateStatusWithOutbox atomically flips the account's status and
 	// inserts the corresponding AccountFrozen/AccountUnfrozen outbox event.
-	UpdateStatusWithOutbox(ctx context.Context, accountID string, status domain.AccountStatus, eventType string, eventPayload any) error
+	// frozenBy is recorded only when status is FROZEN and cleared otherwise.
+	UpdateStatusWithOutbox(ctx context.Context, accountID string, status domain.AccountStatus, frozenBy domain.Actor, eventType string, eventPayload any) error
 
 	// ApplyTransactionPosted implements the idempotent balance-projection
 	// update described in docs/05-system-architecture.md §5 and §7: within

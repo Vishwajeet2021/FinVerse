@@ -168,3 +168,38 @@ async function doRequest<T>(
 		errorDetail?.requestId
 	);
 }
+
+export interface DownloadedFile {
+	blob: Blob;
+	filename: string;
+}
+
+// Downloads a file through the same authenticated, refresh-on-401 path as JSON calls. Reports
+// are never exposed by a public or pre-signed URL (docs/23 D-R2), so the browser has to fetch
+// them with the bearer token and then hand the bytes to the user.
+export async function apiDownload(
+	baseUrl: string,
+	path: string,
+	isRetry = false
+): Promise<DownloadedFile> {
+	const res = await performFetch(baseUrl, path, { auth: true, headers: { Accept: 'text/csv' } });
+	if (res.ok) {
+		// The server names the file; keep only characters that are safe in a file name.
+		const header = res.headers.get('Content-Disposition') ?? '';
+		const raw = /filename="([^"]+)"/.exec(header)?.[1] ?? 'report.csv';
+		return { blob: await res.blob(), filename: raw.replace(/[^A-Za-z0-9._-]/g, '_') };
+	}
+	if (res.status === 401 && !isRetry && refreshHandler) {
+		const newToken = await refreshHandler().catch(() => null);
+		if (newToken) return apiDownload(baseUrl, path, true);
+	}
+	const body = await parseJsonBody(res);
+	const detail = isErrorBody(body) ? body.error : null;
+	throw new ApiError(
+		res.status,
+		detail?.code ?? 'UNKNOWN_ERROR',
+		detail?.message ?? 'Something went wrong. Please try again.',
+		detail?.details,
+		detail?.requestId
+	);
+}
