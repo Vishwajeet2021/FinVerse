@@ -32,3 +32,7 @@ scrape_configs:
         labels: { service: fraud-service }
       - targets: ["audit-service:8087"]
         labels: { service: audit-service }
+      - targets: ["admin-service:8089"]
+        labels: { service: admin-service }
+      - targets: ["reporting-service:8090"]
+        labels: { service: reporting-service }

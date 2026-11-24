@@ -1,0 +1,42 @@
+name: admin-service
+
+on:
+  pull_request:
+    paths:
+      - "services/admin-service/**"
+      - "shared/go/**"
+      - ".github/workflows/admin-service.yml"
+  push:
+    branches: [main]
+    paths:
+      - "services/admin-service/**"
+      - "shared/go/**"
+
+defaults:
+  run:
+    working-directory: services/admin-service
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: services/admin-service
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./... -coverprofile=coverage.out
+
+      - name: Build
+        run: go build ./...
