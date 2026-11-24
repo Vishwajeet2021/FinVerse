@@ -31,10 +31,12 @@ docs/         The 20 foundational documents — read these first
 
 Prerequisites: Go 1.26+, Node 22+, Docker Desktop.
 
-1. Start the backend stack (Postgres, Redis, and every Go service that exists so far):
+1. Create your local secrets once (random database passwords, the service-to-service key and the PAN encryption key; the file is git-ignored), then start the backend stack:
    ```
+   python scripts/gen_env.py
    docker compose -f docker/docker-compose.yml up --build
    ```
+   Compose refuses to start without `docker/.env`. If you have a Postgres volume from before this change, recreate it (`docker compose down -v`, which deletes local data) so the per-service database roles are created. Published ports bind to localhost only.
    Auth Service comes up on `:8081`, Customer Service on `:8082`. Both apply their own database migrations automatically on startup — no manual migration step is needed locally.
 
 2. Run the frontend separately (a hot-reloading dev server gains nothing from containerization):

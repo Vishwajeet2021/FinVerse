@@ -18,3 +18,24 @@ export function isPasswordLongEnough(password: string): boolean {
 export function passwordsMatch(password: string, confirmPassword: string): boolean {
 	return password.length > 0 && password === confirmPassword;
 }
+
+// Mirrors the server's customer rules (services/customer-service/internal/domain/validation.go).
+const PAN_PATTERN = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+
+export function isValidPan(pan: string): boolean {
+	return PAN_PATTERN.test(pan);
+}
+
+export const MAX_PASSWORD_LENGTH = 128;
+export const MAX_ACCOUNT_NUMBER_LENGTH = 32;
+
+// The caller must be an adult (18 to 120 years old on `now`).
+export function isAdultDob(dob: string, now: Date = new Date()): boolean {
+	const d = new Date(dob);
+	if (Number.isNaN(d.getTime())) return false;
+	const oldest = new Date(now);
+	oldest.setFullYear(now.getFullYear() - 120);
+	const youngest = new Date(now);
+	youngest.setFullYear(now.getFullYear() - 18);
+	return d >= oldest && d <= youngest;
+}

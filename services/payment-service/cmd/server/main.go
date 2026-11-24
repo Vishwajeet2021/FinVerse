@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"github.com/finverse/shared/ratelimit"
 	"github.com/finverse/shared/svcauth"
 	"net/http"
 	"os"
@@ -122,6 +123,8 @@ func main() {
 
 	router := transporthttp.NewRouter(transporthttp.RouterDeps{
 		Handler:        handler,
+		Limiter:        ratelimit.New(redisClient),
+		PaymentsPerMin: cfg.PaymentsPerMinute,
 		Verifier:       verifier,
 		DB:             db,
 		Logger:         logger,

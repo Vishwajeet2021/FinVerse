@@ -4,6 +4,8 @@ package main
 
 import (
 	"context"
+	"github.com/finverse/shared/ratelimit"
+	"github.com/redis/go-redis/v9"
 	"net/http"
 	"os"
 	"os/signal"
@@ -72,7 +74,10 @@ func main() {
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, emailVerificationRepo, passwordResetRepo, signer, mailer)
 	handler := transporthttp.NewHandler(authService, transporthttp.CookieConfig{Secure: cfg.CookieSecure()})
 
+	redisClient := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
+
 	router := transporthttp.NewRouter(transporthttp.RouterDeps{
+		Limiter:        ratelimit.New(redisClient),
 		Handler:        handler,
 		Verifier:       verifier,
 		DB:             db,

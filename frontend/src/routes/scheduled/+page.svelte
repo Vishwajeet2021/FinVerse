@@ -165,7 +165,7 @@
 					<label for="to" class="text-sm font-medium text-slate-700 dark:text-slate-200">
 						To account number
 					</label>
-					<input id="to" bind:value={toAccountNumber} class={inputClass} />
+					<input id="to" maxlength="32" bind:value={toAccountNumber} class={inputClass} />
 				</div>
 				<div class="flex flex-col gap-1">
 					<label for="amt" class="text-sm font-medium text-slate-700 dark:text-slate-200">

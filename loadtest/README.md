@@ -4,6 +4,7 @@ Measured, repeatable numbers for the payment path (NFR-PERF-3, NFR-PERF-5,
 NFR-SCALE-2, NFR-DATA-3). Results are recorded in `docs/20-ai-dlc-phase3.md`.
 
 ```bash
+python scripts/gen_env.py              # once: creates docker/.env with local secrets
 docker compose -f docker/docker-compose.yml up -d --build
 python loadtest/setup.py 4            # 4 verified customers + accounts -> fixtures.json
 # Git Bash on Windows: export MSYS_NO_PATHCONV=1 first

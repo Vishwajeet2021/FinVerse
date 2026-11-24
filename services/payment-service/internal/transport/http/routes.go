@@ -1,6 +1,7 @@
 package http
 
 import (
+	"github.com/finverse/shared/ratelimit"
 	"time"
 
 	"github.com/finverse/shared/httpsec"
@@ -19,6 +20,8 @@ type RouterDeps struct {
 	DB             *gorm.DB
 	Logger         *zap.Logger
 	FrontendOrigin string
+	Limiter        *ratelimit.Limiter
+	PaymentsPerMin int64
 }
 
 type AuthMiddleware interface {
@@ -27,6 +30,7 @@ type AuthMiddleware interface {
 
 func NewRouter(deps RouterDeps) *gin.Engine {
 	r := gin.New()
+	_ = r.SetTrustedProxies(nil)
 	r.Use(telemetry.GinMiddleware("payment-service"))
 	r.Use(httpsec.Headers(), httpsec.BodyLimit(httpsec.DefaultBodyLimit))
 	r.Use(sharedlogging.Recovery(deps.Logger))
@@ -46,14 +50,18 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 	v1 := r.Group("/api/v1/payments")
 	v1.Use(deps.Verifier.Middleware())
 	{
-		v1.POST("", jwtauth.RequireScopes("payments:write"), deps.Handler.InitiatePayment)
-
 		h := deps.Handler
+		// Money-moving writes are throttled per authenticated user. Fraud velocity rules are the
+		// business control; this is the cheap outer bound that keeps a runaway client from
+		// reaching them at all.
+		perUser := func(c *gin.Context) string { return "user:" + callerID(c) }
+		throttle := deps.Limiter.Middleware("payments-write", deps.PaymentsPerMin, time.Minute, perUser, true)
 		w, rd := jwtauth.RequireScopes("payments:write"), jwtauth.RequireScopes("payments:read")
-		v1.POST("/scheduled", w, h.CreateScheduled)
+		v1.POST("", w, throttle, h.InitiatePayment)
+		v1.POST("/scheduled", w, throttle, h.CreateScheduled)
 		v1.GET("/scheduled", rd, h.ListScheduled)
 		v1.DELETE("/scheduled/:id", w, h.CancelScheduled)
-		v1.POST("/standing-instructions", w, h.CreateStanding)
+		v1.POST("/standing-instructions", w, throttle, h.CreateStanding)
 		v1.GET("/standing-instructions", rd, h.ListStanding)
 		v1.POST("/standing-instructions/:id/pause", w, h.PauseStanding)
 		v1.POST("/standing-instructions/:id/resume", w, h.ResumeStanding)

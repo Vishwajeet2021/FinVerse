@@ -80,7 +80,7 @@ func (s *PaymentService) CreateStanding(ctx context.Context, r ScheduleRequest, 
 }
 
 func (s *PaymentService) validateSchedule(ctx context.Context, r ScheduleRequest) error {
-	if r.AmountMinor <= 0 {
+	if r.AmountMinor <= 0 || r.AmountMinor > domain.MaxAmountMinor {
 		return domain.ErrInvalidAmount
 	}
 	if err := s.rails.Validate(r.Rail, r.AmountMinor); err != nil {

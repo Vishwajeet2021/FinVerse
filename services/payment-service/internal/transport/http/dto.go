@@ -7,10 +7,10 @@ import (
 )
 
 type initiatePaymentRequest struct {
-	FromAccountID   string `json:"fromAccountId" binding:"required"`
-	ToAccountNumber string `json:"toAccountNumber" binding:"required"`
-	AmountMinor     int64  `json:"amountMinor" binding:"required"`
-	Rail            string `json:"rail"` // optional; defaults to INTERNAL
+	FromAccountID   string `json:"fromAccountId" binding:"required,uuid"`
+	ToAccountNumber string `json:"toAccountNumber" binding:"required,alphanum,max=32"`
+	AmountMinor     int64  `json:"amountMinor" binding:"required,lte=1000000000"`
+	Rail            string `json:"rail" binding:"max=10"` // optional; defaults to INTERNAL
 }
 
 type paymentResponse struct {
@@ -34,13 +34,13 @@ func toPaymentResponse(p *domain.Payment) paymentResponse {
 }
 
 type scheduleRequest struct {
-	FromAccountID   string    `json:"fromAccountId" binding:"required"`
-	ToAccountNumber string    `json:"toAccountNumber" binding:"required"`
-	AmountMinor     int64     `json:"amountMinor" binding:"required"`
-	Rail            string    `json:"rail"`
+	FromAccountID   string    `json:"fromAccountId" binding:"required,uuid"`
+	ToAccountNumber string    `json:"toAccountNumber" binding:"required,alphanum,max=32"`
+	AmountMinor     int64     `json:"amountMinor" binding:"required,lte=1000000000"`
+	Rail            string    `json:"rail" binding:"max=10"`
 	RunAt           time.Time `json:"runAt"` // scheduled payments
 	// Standing instructions:
-	Frequency  string    `json:"frequency"`
+	Frequency  string    `json:"frequency" binding:"max=10"`
 	FirstRunAt time.Time `json:"firstRunAt"`
 }
 

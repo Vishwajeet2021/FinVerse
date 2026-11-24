@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/finverse/customer-service/internal/domain"
@@ -14,6 +15,10 @@ import (
 // confirmation flow itself belongs to Payment Service (docs/06-domain-driven-design.md §2.2);
 // Customer Service only owns the verification flag's state.
 func (s *CustomerService) AddBeneficiary(ctx context.Context, customerID, name, accountRef string) (*domain.Beneficiary, error) {
+	name = strings.TrimSpace(name)
+	if err := domain.ValidateFullName(name); err != nil {
+		return nil, err
+	}
 	if _, err := s.customers.GetByID(ctx, customerID); err != nil {
 		return nil, err
 	}

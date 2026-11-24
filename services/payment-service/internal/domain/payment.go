@@ -56,3 +56,7 @@ var (
 	ErrSameAccount              = errors.New("cannot transfer an account to itself")
 	ErrRecipientAccountNotFound = errors.New("no account exists with that account number")
 )
+
+// MaxAmountMinor is the largest single amount (INR 1 crore) accepted by any money-moving path.
+// It bounds arithmetic and sits far above retail limits, which Fraud enforces per rail.
+const MaxAmountMinor int64 = 1_000_000_000

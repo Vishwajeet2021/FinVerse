@@ -19,7 +19,13 @@ func (s *CustomerService) AddDocument(ctx context.Context, customerID, docType, 
 		return nil, err
 	}
 
-	storageKey, err := s.storage.Save(ctx, customerID, filename, data)
+	ext, err := domain.ValidateDocument(docType, filename, data)
+	if err != nil {
+		return nil, err
+	}
+
+	// The client's filename is never used for storage: only the validated extension is kept.
+	storageKey, err := s.storage.Save(ctx, customerID, "document"+ext, data)
 	if err != nil {
 		return nil, fmt.Errorf("saving document to storage: %w", err)
 	}

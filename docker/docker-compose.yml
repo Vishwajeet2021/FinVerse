@@ -57,6 +57,7 @@ services:
       - "127.0.0.1:8081:8081"
       - "[::1]:8081:8081"
     environment:
+      REDIS_ADDR: redis:6379
       PORT: "8081"
       AUTH_DATABASE_URL: postgres://auth_svc:${AUTH_DB_PASSWORD}@postgres:5432/auth_db?sslmode=disable
       AUTH_JWT_PRIVATE_KEY_PATH: /keys/auth-jwt-private.pem
@@ -71,6 +72,8 @@ services:
       - auth_keys:/keys
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8081/health"]
@@ -236,6 +239,8 @@ services:
       - "127.0.0.1:8085:8085"
       - "[::1]:8085:8085"
     environment:
+      # Per-user cap on payment writes. Default is 120/min; loosened here only so loadtest/ (about 25 req/s per user) can run.
+      RATE_LIMIT_PAYMENTS_PER_MIN: "100000"
       SERVICE_AUTH_KEY: ${SERVICE_AUTH_KEY:?missing in docker/.env}
       PORT: "8085"
       PAYMENT_DATABASE_URL: postgres://payment_svc:${PAYMENT_DB_PASSWORD}@postgres:5432/payment_db?sslmode=disable
