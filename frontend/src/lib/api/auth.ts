@@ -37,10 +37,57 @@ export function register(input: RegisterInput): Promise<RegisteredUser> {
 	});
 }
 
-export function login(input: LoginInput): Promise<TokenResult> {
-	return apiRequest<TokenResult>(AUTH_SERVICE_URL, '/api/v1/auth/login', {
+// A password check ends in one of three ways (docs/24-admin-mfa.md): a session, a request for a
+// code from the user's authenticator, or - for roles that must have two-step verification and
+// have not set it up yet - a request to set it up. The challenge token proves only that the
+// password step passed; it opens no API and is held in memory for the length of the sign-in.
+export interface LoginResult {
+	accessToken?: string;
+	tokenType?: string;
+	mfaRequired?: boolean;
+	mfaEnrollmentRequired?: boolean;
+	challengeToken?: string;
+}
+
+export function login(input: LoginInput): Promise<LoginResult> {
+	return apiRequest<LoginResult>(AUTH_SERVICE_URL, '/api/v1/auth/login', {
 		method: 'POST',
 		body: input
+	});
+}
+
+export function verifyMfa(challengeToken: string, code: string): Promise<TokenResult> {
+	return apiRequest<TokenResult>(AUTH_SERVICE_URL, '/api/v1/auth/mfa/verify', {
+		method: 'POST',
+		body: { challengeToken, code }
+	});
+}
+
+export interface MfaEnrollment {
+	secret: string;
+	otpauthUri: string;
+}
+
+export function beginMfaEnrollment(challengeToken: string): Promise<MfaEnrollment> {
+	return apiRequest<MfaEnrollment>(AUTH_SERVICE_URL, '/api/v1/auth/mfa/enroll/begin', {
+		method: 'POST',
+		body: { challengeToken }
+	});
+}
+
+// Finishes enrolment and the sign-in together. The recovery codes in the response are shown to
+// the user exactly once; the server keeps only their hashes.
+export interface MfaEnrollmentSession extends TokenResult {
+	recoveryCodes: string[];
+}
+
+export function confirmMfaEnrollment(
+	challengeToken: string,
+	code: string
+): Promise<MfaEnrollmentSession> {
+	return apiRequest<MfaEnrollmentSession>(AUTH_SERVICE_URL, '/api/v1/auth/mfa/enroll/confirm', {
+		method: 'POST',
+		body: { challengeToken, code }
 	});
 }
 

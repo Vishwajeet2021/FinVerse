@@ -1,5 +1,6 @@
 <script lang="ts">
-	type Autocomplete = 'email' | 'tel' | 'new-password' | 'current-password' | 'off';
+	type Autocomplete =
+		'email' | 'tel' | 'new-password' | 'current-password' | 'one-time-code' | 'off';
 
 	interface Props {
 		id: string;
@@ -12,6 +13,7 @@
 		error?: string | null;
 		// Defaults mirror the server's limits so over-long input is stopped before a round trip.
 		maxlength?: number;
+		inputmode?: 'numeric' | 'text';
 	}
 
 	let {
@@ -23,7 +25,8 @@
 		required = false,
 		autocomplete,
 		error = null,
-		maxlength = type === 'password' ? 128 : 254
+		maxlength = type === 'password' ? 128 : 254,
+		inputmode
 	}: Props = $props();
 </script>
 
@@ -36,6 +39,7 @@
 		{required}
 		{autocomplete}
 		{maxlength}
+		{inputmode}
 		bind:value
 		aria-invalid={error ? 'true' : undefined}
 		aria-describedby={error ? `${id}-error` : undefined}

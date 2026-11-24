@@ -63,9 +63,50 @@ export function ensureAuthInitialized(): Promise<void> {
 	return initPromise;
 }
 
-export async function loginAndSetSession(email: string, password: string): Promise<void> {
+// What a password check led to. 'session' means the user is signed in; the other two mean a
+// second step is owed and carry the one-time challenge that step needs.
+export type LoginOutcome =
+	| { kind: 'session' }
+	| { kind: 'mfa'; challengeToken: string }
+	| { kind: 'enroll'; challengeToken: string };
+
+export async function loginAndSetSession(email: string, password: string): Promise<LoginOutcome> {
 	const result = await authApi.login({ email, password });
+	if (result.accessToken) {
+		setSession(result.accessToken, email);
+		return { kind: 'session' };
+	}
+	if (result.mfaEnrollmentRequired && result.challengeToken) {
+		return { kind: 'enroll', challengeToken: result.challengeToken };
+	}
+	if (result.mfaRequired && result.challengeToken) {
+		return { kind: 'mfa', challengeToken: result.challengeToken };
+	}
+	// A 200 that is none of the above is a server contract break; do not guess.
+	throw new Error('Unexpected sign-in response.');
+}
+
+export async function completeMfaLogin(
+	email: string,
+	challengeToken: string,
+	code: string
+): Promise<void> {
+	const result = await authApi.verifyMfa(challengeToken, code);
 	setSession(result.accessToken, email);
+}
+
+export const beginEnrollment = authApi.beginMfaEnrollment;
+
+// Confirming enrolment signs the user in. The recovery codes come back with the session and are
+// handed to the caller to display once; this store deliberately does not keep them.
+export async function completeEnrollment(
+	email: string,
+	challengeToken: string,
+	code: string
+): Promise<string[]> {
+	const result = await authApi.confirmMfaEnrollment(challengeToken, code);
+	setSession(result.accessToken, email);
+	return result.recoveryCodes;
 }
 
 export async function logoutAndClearSession(): Promise<void> {
