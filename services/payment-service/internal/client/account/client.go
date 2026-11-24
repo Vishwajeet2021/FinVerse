@@ -19,6 +19,11 @@ import (
 	"github.com/finverse/payment-service/internal/domain"
 )
 
+// statusTTL is how long "this account may be debited" is reused. It bounds how long a freeze
+// can take to stop payments from a given Payment Service replica (docs/23 gap list). A frozen or
+// closed answer is never cached, so the first refusal is immediate and stays in force.
+const statusTTL = 3 * time.Second
+
 // ownershipTTL bounds how long a positive ownership answer is reused. Holding
 // an account changes rarely, and this keeps the extra Account Service hop off
 // most requests; the cost is that a holder removed within the last minute can
@@ -32,10 +37,11 @@ type Client struct {
 
 	mu        sync.Mutex
 	ownership map[string]time.Time // userID|accountID -> verified until
+	debitable map[string]time.Time // accountID -> known debitable until
 }
 
 func NewClient(baseURL string, signer *svcauth.Signer) *Client {
-	return &Client{baseURL: baseURL, signer: signer, httpClient: &http.Client{Timeout: 3 * time.Second}, ownership: map[string]time.Time{}}
+	return &Client{baseURL: baseURL, signer: signer, httpClient: &http.Client{Timeout: 3 * time.Second}, ownership: map[string]time.Time{}, debitable: map[string]time.Time{}}
 }
 
 // VerifyOwnership confirms the caller holds accountID by asking Account Service
@@ -110,4 +116,47 @@ func (c *Client) ResolveAccountID(ctx context.Context, accountNumber string) (st
 		return "", fmt.Errorf("decoding response: %w", err)
 	}
 	return body.Data.ID, nil
+}
+
+// CheckCanDebit asks Account Service (service-token route) whether the account may be debited.
+// It is called for every payment, scheduled and standing ones included, because those run with
+// no user token and must still respect a freeze.
+func (c *Client) CheckCanDebit(ctx context.Context, accountID string) error {
+	c.mu.Lock()
+	until, ok := c.debitable[accountID]
+	c.mu.Unlock()
+	if ok && time.Now().Before(until) {
+		return nil
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/internal/account-status/"+accountID, nil)
+	if err != nil {
+		return fmt.Errorf("building request: %w", err)
+	}
+	c.signer.SignRequest(req)
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("calling account-service: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("account-service returned status %d for account status", resp.StatusCode)
+	}
+	var body resolveResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return fmt.Errorf("decoding account status: %w", err)
+	}
+	switch body.Data.Status {
+	case "ACTIVE":
+		c.mu.Lock()
+		c.debitable[accountID] = time.Now().Add(statusTTL)
+		c.mu.Unlock()
+		return nil
+	case "FROZEN":
+		return domain.ErrSourceAccountFrozen
+	case "CLOSED":
+		return domain.ErrSourceAccountClosed
+	default:
+		return fmt.Errorf("account-service reported unknown status %q", body.Data.Status)
+	}
 }

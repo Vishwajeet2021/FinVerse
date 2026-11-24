@@ -65,6 +65,11 @@ func Created(c *gin.Context, data any) {
 	c.JSON(http.StatusCreated, successEnvelope{Data: data, Meta: Meta{RequestID: requestID(c)}})
 }
 
+// Accepted writes a 202 success envelope, for work that was queued rather than finished.
+func Accepted(c *gin.Context, data any) {
+	c.JSON(http.StatusAccepted, successEnvelope{Data: data, Meta: Meta{RequestID: requestID(c)}})
+}
+
 // NoContent writes a 204 with no body.
 func NoContent(c *gin.Context) {
 	c.Status(http.StatusNoContent)

@@ -10,6 +10,7 @@ type accountModel struct {
 	Status              string    `gorm:"column:status"`
 	OverdraftLimitMinor int64     `gorm:"column:overdraft_limit_minor"`
 	CreatedAt           time.Time `gorm:"column:created_at"`
+	FrozenBy            *string   `gorm:"column:frozen_by"`
 }
 
 func (accountModel) TableName() string { return "accounts" }

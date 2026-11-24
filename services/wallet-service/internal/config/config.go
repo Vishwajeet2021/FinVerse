@@ -12,6 +12,7 @@ type Config struct {
 	DatabaseURL                string
 	RedisAddr                  string
 	TransactionServiceGRPCAddr string
+	AccountServiceURL          string
 	AuthJWKSURL                string
 	AuthJWTIssuer              string
 	AuthJWTAudience            string
@@ -26,6 +27,7 @@ func Load() Config {
 		DatabaseURL:                getEnv("WALLET_DATABASE_URL", "postgres://finverse:finverse@localhost:5432/wallet_db?sslmode=disable"),
 		RedisAddr:                  getEnv("REDIS_ADDR", "localhost:6379"),
 		TransactionServiceGRPCAddr: getEnv("TRANSACTION_SERVICE_GRPC_ADDR", "localhost:9091"),
+		AccountServiceURL:          getEnv("ACCOUNT_SERVICE_URL", "http://localhost:8083"),
 		AuthJWKSURL:                getEnv("AUTH_JWKS_URL", "http://localhost:8081/.well-known/jwks.json"),
 		AuthJWTIssuer:              getEnv("AUTH_JWT_ISSUER", "https://auth.finverse.local"),
 		AuthJWTAudience:            getEnv("AUTH_JWT_AUDIENCE", "finverse-api"),

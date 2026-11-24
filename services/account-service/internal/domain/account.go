@@ -58,7 +58,17 @@ type Account struct {
 	Status              AccountStatus
 	OverdraftLimitMinor int64
 	CreatedAt           time.Time
+	// FrozenBy is who placed the current freeze; empty when not frozen (docs/23 D-A4).
+	FrozenBy Actor
 }
+
+// Actor is who performed a state change.
+type Actor string
+
+const (
+	ActorCustomer Actor = "customer"
+	ActorAdmin    Actor = "admin"
+)
 
 // CanDebit implements FR-ACC-6: a frozen or closed account rejects any
 // debit-affecting operation while continuing to accept credits. Nothing in
@@ -104,6 +114,8 @@ var (
 	ErrAccountAlreadyFrozen = errors.New("account is already frozen")
 	ErrAccountNotFrozen     = errors.New("account is not frozen")
 	ErrAccountAlreadyClosed = errors.New("account is already closed")
+	// ErrFrozenByAdmin: a customer tried to lift a hold an administrator placed.
+	ErrFrozenByAdmin = errors.New("account was frozen by an administrator")
 	// ErrAccountHasBalance guards FR-ACC-5's closure path: an account can
 	// only be closed at a zero ledger balance, the same real-world rule
 	// every bank enforces — closing is not a way to make money disappear.

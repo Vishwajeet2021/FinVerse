@@ -27,6 +27,13 @@ const (
 	SourceServiceName = "wallet-service"
 )
 
+// AccountDebitChecker asks Account Service whether an account may be debited. It returns
+// domain.ErrFundingAccountFrozen or ErrFundingAccountClosed when it may not, and any other error
+// when the state could not be determined (the caller then refuses, rather than guessing).
+type AccountDebitChecker interface {
+	CheckCanDebit(ctx context.Context, accountID string) error
+}
+
 // WalletRepository is implemented by internal/repository/postgres.
 // CreateWalletWithProjection and ApplyTransactionPostedIdempotent each wrap
 // their DB write(s) and the relevant outbox/dedupe row in one transaction --

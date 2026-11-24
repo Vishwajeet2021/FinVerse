@@ -143,6 +143,7 @@ func (h *historyRow) toLeg() domain.Leg {
 		AmountMinor:     h.AmountMinor,
 		Direction:       domain.Direction(h.Direction),
 		Currency:        h.Currency,
+		CreatedAt:       h.TxnCreatedAt,
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 	"github.com/finverse/shared/jwtauth"
 	sharedlogging "github.com/finverse/shared/logging"
 	"github.com/finverse/shared/telemetry"
+	accountclient "github.com/finverse/wallet-service/internal/client/account"
 	"github.com/finverse/wallet-service/internal/client/ledger"
 	"github.com/finverse/wallet-service/internal/config"
 	"github.com/finverse/wallet-service/internal/migrate"
@@ -78,7 +79,7 @@ func main() {
 	}
 
 	repo := postgres.NewWalletRepository(db)
-	walletService := service.NewWalletService(repo, ledgerClient)
+	walletService := service.NewWalletService(repo, ledgerClient, accountclient.NewClient(cfg.AccountServiceURL, signer))
 	handler := transporthttp.NewHandler(walletService)
 
 	relay := postgres.NewOutboxRelay(db, publisher, logger)

@@ -64,6 +64,10 @@ var (
 	ErrInsufficientBalance = errors.New("this debit would take the wallet balance negative")
 	ErrSameWallet          = errors.New("cannot transfer a wallet to itself")
 	ErrInvalidAmount       = errors.New("amount must be a positive number of minor units")
+	// ErrFundingAccountFrozen / ErrFundingAccountClosed: a top-up debits the funding account, so
+	// a freeze (FR-ACC-6) must stop it just as it stops a payment.
+	ErrFundingAccountFrozen = errors.New("the funding account is frozen")
+	ErrFundingAccountClosed = errors.New("the funding account is closed")
 )
 
 // MaxAmountMinor is the largest single amount (INR 1 crore) accepted by any money-moving path.

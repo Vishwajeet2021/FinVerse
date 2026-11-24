@@ -87,6 +87,59 @@ func TestFreezeUnfreeze(t *testing.T) {
 	}
 }
 
+func TestAdminFreezeCannotBeLiftedByCustomer(t *testing.T) {
+	svc, repo := newTestAccountService()
+	ctx := context.Background()
+	account, _ := svc.OpenAccount(ctx, "customer-1", "SAVINGS")
+
+	if err := svc.FreezeAs(ctx, account.ID, "fraud review", domain.ActorAdmin); err != nil {
+		t.Fatalf("admin freeze: %v", err)
+	}
+	if got, _ := repo.GetByID(ctx, account.ID); got.FrozenBy != domain.ActorAdmin {
+		t.Fatalf("FrozenBy = %q, want admin", got.FrozenBy)
+	}
+	if err := svc.Unfreeze(ctx, account.ID); err != domain.ErrFrozenByAdmin {
+		t.Fatalf("customer unfreeze of admin hold: got %v, want ErrFrozenByAdmin", err)
+	}
+	if got, _ := repo.GetByID(ctx, account.ID); got.Status != domain.StatusFrozen {
+		t.Fatal("account must stay frozen after the refused unfreeze")
+	}
+	if err := svc.UnfreezeAs(ctx, account.ID, domain.ActorAdmin); err != nil {
+		t.Fatalf("admin unfreeze: %v", err)
+	}
+	if got, _ := repo.GetByID(ctx, account.ID); got.Status != domain.StatusActive || got.FrozenBy != "" {
+		t.Fatalf("after admin unfreeze: status=%v frozenBy=%q", got.Status, got.FrozenBy)
+	}
+}
+
+func TestCustomerFreezeCanBeLiftedByAdminAndCustomer(t *testing.T) {
+	svc, _ := newTestAccountService()
+	ctx := context.Background()
+	account, _ := svc.OpenAccount(ctx, "customer-1", "SAVINGS")
+
+	_ = svc.Freeze(ctx, account.ID, "lost phone")
+	if err := svc.Unfreeze(ctx, account.ID); err != nil {
+		t.Fatalf("customer lifting own freeze: %v", err)
+	}
+	_ = svc.Freeze(ctx, account.ID, "lost phone")
+	if err := svc.UnfreezeAs(ctx, account.ID, domain.ActorAdmin); err != nil {
+		t.Fatalf("admin lifting customer freeze: %v", err)
+	}
+}
+
+func TestFreezeEventCarriesActor(t *testing.T) {
+	svc, repo := newTestAccountService()
+	ctx := context.Background()
+	account, _ := svc.OpenAccount(ctx, "customer-1", "SAVINGS")
+	_ = svc.FreezeAs(ctx, account.ID, "x", domain.ActorAdmin)
+
+	last := repo.outboxEvents[len(repo.outboxEvents)-1]
+	p, ok := last.Payload.(accountFrozenPayload)
+	if last.EventType != EventAccountFrozen || !ok || p.Actor != "admin" {
+		t.Fatalf("event = %+v, want AccountFrozen with actor admin", last)
+	}
+}
+
 func TestCloseAccount_RejectsNonZeroBalance(t *testing.T) {
 	svc, repo := newTestAccountService()
 	ctx := context.Background()

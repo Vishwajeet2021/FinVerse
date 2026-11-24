@@ -109,10 +109,16 @@ type fakeAccountResolver struct {
 	overrides map[string]string
 	missing   map[string]bool
 	err       error
+	// debit maps a source account id to the error CheckCanDebit returns for it (nil = may debit).
+	debit map[string]error
 }
 
 func newFakeAccountResolver() *fakeAccountResolver {
-	return &fakeAccountResolver{overrides: map[string]string{}, missing: map[string]bool{}}
+	return &fakeAccountResolver{overrides: map[string]string{}, missing: map[string]bool{}, debit: map[string]error{}}
+}
+
+func (f *fakeAccountResolver) CheckCanDebit(_ context.Context, accountID string) error {
+	return f.debit[accountID]
 }
 
 func (f *fakeAccountResolver) ResolveAccountID(_ context.Context, accountNumber string) (string, error) {

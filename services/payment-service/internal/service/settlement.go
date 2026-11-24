@@ -48,6 +48,16 @@ func (s *PaymentService) settleOne(ctx context.Context, p *domain.Payment) bool 
 		_, _ = s.failPayment(ctx, p, "RAIL_REJECTED: beneficiary account not found", nil)
 		return true
 	}
+	if err == nil {
+		// The account may have been frozen after this payment was accepted but before it cleared.
+		if dErr := s.account.CheckCanDebit(ctx, p.FromAccountID); dErr != nil {
+			if errors.Is(dErr, domain.ErrSourceAccountFrozen) || errors.Is(dErr, domain.ErrSourceAccountClosed) {
+				_, _ = s.failPayment(ctx, p, "ACCOUNT_FROZEN: the paying account was frozen before this payment cleared; funds were not moved", nil)
+				return true
+			}
+			err = dErr // state unknown: take the transient-retry path below, never post blindly
+		}
+	}
 	var txID string
 	if err == nil {
 		legs := []LedgerLeg{

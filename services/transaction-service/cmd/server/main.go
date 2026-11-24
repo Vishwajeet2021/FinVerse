@@ -73,7 +73,7 @@ func main() {
 
 	// gRPC server — the sync path Payment/Wallet/Account Service call
 	// (docs/05-system-architecture.md §4).
-	grpcServer := grpc.NewServer(grpc.StatsHandler(telemetry.GRPCServerStats()), grpc.ChainUnaryInterceptor(sharedlogging.UnaryServerInterceptor(logger), svcVerifier.UnaryServerInterceptor("payment-service", "account-service", "wallet-service")))
+	grpcServer := grpc.NewServer(grpc.StatsHandler(telemetry.GRPCServerStats()), grpc.ChainUnaryInterceptor(sharedlogging.UnaryServerInterceptor(logger), svcVerifier.UnaryServerInterceptor("payment-service", "account-service", "wallet-service", "reporting-service")))
 	ledgerv1.RegisterLedgerServiceServer(grpcServer, transportgrpc.NewServer(ledger))
 	lis, err := net.Listen("tcp", ":"+cfg.GRPCPort)
 	if err != nil {

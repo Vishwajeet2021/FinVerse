@@ -18,6 +18,8 @@ func writeDomainError(c *gin.Context, err error) {
 		apiresponse.Conflict(c, "ACCOUNT_ALREADY_FROZEN", "This account is already frozen.")
 	case domain.ErrAccountNotFrozen:
 		apiresponse.Conflict(c, "ACCOUNT_NOT_FROZEN", "This account is not frozen.")
+	case domain.ErrFrozenByAdmin:
+		apiresponse.Forbidden(c, "FROZEN_BY_ADMIN", "This account was frozen by FinVerse. Please contact support to have it reviewed.")
 	case domain.ErrAccountAlreadyClosed:
 		apiresponse.Conflict(c, "ACCOUNT_ALREADY_CLOSED", "This account is already closed.")
 	case domain.ErrAccountHasBalance:

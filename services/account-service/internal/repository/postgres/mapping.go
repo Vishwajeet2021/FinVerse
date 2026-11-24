@@ -15,7 +15,12 @@ func toAccountModel(a *domain.Account) *accountModel {
 }
 
 func fromAccountModel(m *accountModel) *domain.Account {
+	var frozenBy domain.Actor
+	if m.FrozenBy != nil {
+		frozenBy = domain.Actor(*m.FrozenBy)
+	}
 	return &domain.Account{
+		FrozenBy:            frozenBy,
 		ID:                  m.ID,
 		CustomerID:          m.CustomerID,
 		AccountNumber:       m.AccountNumber,

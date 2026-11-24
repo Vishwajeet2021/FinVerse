@@ -113,6 +113,9 @@ func (s *Server) GetAccountHistory(ctx context.Context, req *ledgerv1.GetAccount
 			Direction:     toProtoDirection(l.Direction),
 			Currency:      l.Currency,
 		}
+		if !l.CreatedAt.IsZero() {
+			entries[i].CreatedAt = l.CreatedAt.UTC().Format(time.RFC3339Nano)
+		}
 	}
 
 	return &ledgerv1.GetAccountHistoryResponse{Entries: entries, NextCursor: nextCursor}, nil

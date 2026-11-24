@@ -97,6 +97,9 @@ type LedgerClient interface {
 // lookup, not the money-movement critical path.
 type AccountResolver interface {
 	ResolveAccountID(ctx context.Context, accountNumber string) (string, error)
+	// CheckCanDebit returns domain.ErrSourceAccountFrozen or ErrSourceAccountClosed when the
+	// account may not be debited, and any other error when its state could not be determined.
+	CheckCanDebit(ctx context.Context, accountID string) error
 }
 
 // LedgerLeg is one leg of a PostTransaction call, in this service's own

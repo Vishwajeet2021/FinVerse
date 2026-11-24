@@ -8,10 +8,23 @@ import (
 	"github.com/finverse/wallet-service/internal/domain"
 )
 
+// fakeAccountGuard allows every debit unless an error is set for the account.
+type fakeAccountGuard struct{ errs map[string]error }
+
+func (f *fakeAccountGuard) CheckCanDebit(_ context.Context, accountID string) error {
+	return f.errs[accountID]
+}
+
 func newTestWalletService() (*WalletService, *fakeWalletRepository, *fakeLedgerClient) {
+	svc, repo, ledger, _ := newTestWalletServiceWithGuard()
+	return svc, repo, ledger
+}
+
+func newTestWalletServiceWithGuard() (*WalletService, *fakeWalletRepository, *fakeLedgerClient, *fakeAccountGuard) {
 	repo := newFakeWalletRepository()
 	ledger := &fakeLedgerClient{}
-	return NewWalletService(repo, ledger), repo, ledger
+	guard := &fakeAccountGuard{errs: map[string]error{}}
+	return NewWalletService(repo, ledger, guard), repo, ledger, guard
 }
 
 func TestProvisionWallet_OnePerCustomer(t *testing.T) {
@@ -206,5 +219,36 @@ func TestConsumeTransactionPosted_AppliesBothLegsOfAWalletToWalletTransfer(t *te
 	toBalance, _ := svc.GetBalance(ctx, to.ID)
 	if toBalance.BalanceMinor != 300_00 {
 		t.Errorf("receiver balance: got %d, want 30000", toBalance.BalanceMinor)
+	}
+}
+
+func TestTopUp_RefusedWhenFundingAccountIsFrozenOrClosed(t *testing.T) {
+	for name, want := range map[string]error{"frozen": domain.ErrFundingAccountFrozen, "closed": domain.ErrFundingAccountClosed} {
+		svc, _, ledger, guard := newTestWalletServiceWithGuard()
+		ctx := context.Background()
+		w, err := svc.ProvisionWallet(ctx, "customer-1", "account-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		guard.errs["account-1"] = want
+		if err := svc.TopUp(ctx, w.ID, 500, "key-"+name); err != want {
+			t.Errorf("%s: err = %v, want %v (returned unwrapped so the handler can map it)", name, err, want)
+		}
+		if len(ledger.calls) != 0 {
+			t.Errorf("%s: money moved out of a %s account", name, name)
+		}
+	}
+}
+
+func TestTopUp_UnknownAccountStateFailsClosed(t *testing.T) {
+	svc, _, ledger, guard := newTestWalletServiceWithGuard()
+	ctx := context.Background()
+	w, _ := svc.ProvisionWallet(ctx, "customer-1", "account-1")
+	guard.errs["account-1"] = errors.New("account-service unreachable")
+	if err := svc.TopUp(ctx, w.ID, 500, "key"); err == nil {
+		t.Fatal("top-up went through although the account state could not be checked")
+	}
+	if len(ledger.calls) != 0 {
+		t.Error("nothing may be posted when the account state is unknown")
 	}
 }

@@ -134,12 +134,15 @@ func (s *AccountService) GetBalance(ctx context.Context, accountID string) (*dom
 // no freeze-reason column (docs/08-database-design.md §5 defines none), so
 // the event is the durable record of "why."
 //
-// actor attribution (customer/system/admin, per FR-ACC-5) is stubbed to
-// "customer" here: this service has no admin-caller distinction wired up
-// yet (Admin Service doesn't exist until Phase 6,
-// docs/07-microservice-specifications.md §13) — a documented gap, not an
-// oversight.
+// Freeze is the customer path; Admin Service uses FreezeAs with ActorAdmin
+// through the internal route (docs/23 D-A4).
 func (s *AccountService) Freeze(ctx context.Context, accountID, reason string) error {
+	return s.FreezeAs(ctx, accountID, reason, domain.ActorCustomer)
+}
+
+// FreezeAs freezes on behalf of actor. The actor is recorded on the account so a
+// customer cannot later lift an administrator's hold (docs/23 D-A4).
+func (s *AccountService) FreezeAs(ctx context.Context, accountID, reason string, actor domain.Actor) error {
 	account, err := s.repo.GetByID(ctx, accountID)
 	if err != nil {
 		return err
@@ -151,15 +154,20 @@ func (s *AccountService) Freeze(ctx context.Context, accountID, reason string) e
 		return domain.ErrAccountAlreadyFrozen
 	}
 
-	payload := accountFrozenPayload{AccountID: accountID, Reason: reason, Actor: "customer"}
-	if err := s.repo.UpdateStatusWithOutbox(ctx, accountID, domain.StatusFrozen, EventAccountFrozen, payload); err != nil {
+	payload := accountFrozenPayload{AccountID: accountID, Reason: reason, Actor: string(actor)}
+	if err := s.repo.UpdateStatusWithOutbox(ctx, accountID, domain.StatusFrozen, actor, EventAccountFrozen, payload); err != nil {
 		return fmt.Errorf("freezing account: %w", err)
 	}
 	return nil
 }
 
-// Unfreeze implements FR-ACC-5's reverse transition.
+// Unfreeze implements FR-ACC-5's reverse transition on behalf of the customer.
 func (s *AccountService) Unfreeze(ctx context.Context, accountID string) error {
+	return s.UnfreezeAs(ctx, accountID, domain.ActorCustomer)
+}
+
+// UnfreezeAs lifts a freeze. A customer may not lift one an administrator placed.
+func (s *AccountService) UnfreezeAs(ctx context.Context, accountID string, actor domain.Actor) error {
 	account, err := s.repo.GetByID(ctx, accountID)
 	if err != nil {
 		return err
@@ -167,9 +175,12 @@ func (s *AccountService) Unfreeze(ctx context.Context, accountID string) error {
 	if account.Status != domain.StatusFrozen {
 		return domain.ErrAccountNotFrozen
 	}
+	if account.FrozenBy == domain.ActorAdmin && actor != domain.ActorAdmin {
+		return domain.ErrFrozenByAdmin
+	}
 
-	payload := accountUnfrozenPayload{AccountID: accountID, Actor: "customer"}
-	if err := s.repo.UpdateStatusWithOutbox(ctx, accountID, domain.StatusActive, EventAccountUnfrozen, payload); err != nil {
+	payload := accountUnfrozenPayload{AccountID: accountID, Actor: string(actor)}
+	if err := s.repo.UpdateStatusWithOutbox(ctx, accountID, domain.StatusActive, "", EventAccountUnfrozen, payload); err != nil {
 		return fmt.Errorf("unfreezing account: %w", err)
 	}
 	return nil
@@ -201,7 +212,7 @@ func (s *AccountService) CloseAccount(ctx context.Context, accountID string) err
 	}
 
 	payload := accountClosedPayload{AccountID: accountID, Actor: "customer"}
-	if err := s.repo.UpdateStatusWithOutbox(ctx, accountID, domain.StatusClosed, EventAccountClosed, payload); err != nil {
+	if err := s.repo.UpdateStatusWithOutbox(ctx, accountID, domain.StatusClosed, "", EventAccountClosed, payload); err != nil {
 		return fmt.Errorf("closing account: %w", err)
 	}
 	return nil

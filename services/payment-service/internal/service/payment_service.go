@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"time"
@@ -87,6 +88,16 @@ func (s *PaymentService) InitiatePaymentOnRail(ctx context.Context, rail domain.
 	}
 	if err := s.rails.Validate(rail, amountMinor); err != nil {
 		return nil, err
+	}
+
+	// A frozen or closed account may not pay (FR-ACC-6). Checked before anything is recorded and
+	// for every path into this method, including scheduled and standing payments. If the account's
+	// state cannot be determined the payment is refused rather than assumed fine.
+	if err := s.account.CheckCanDebit(ctx, fromAccountID); err != nil {
+		if errors.Is(err, domain.ErrSourceAccountFrozen) || errors.Is(err, domain.ErrSourceAccountClosed) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("checking the paying account: %w", err)
 	}
 
 	// A payer only ever knows the recipient's public account number, never
