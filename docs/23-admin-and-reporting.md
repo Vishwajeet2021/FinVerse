@@ -50,7 +50,8 @@ Acceptance criteria are the live checks in section 6 (`scripts/admin_reporting_d
 - **D-A5 Dashboard degrades per section.** Each source (Fraud, Prometheus, service health) is
   fetched independently with a short timeout; a failure marks that section unavailable instead of
   failing the page.
-- **D-A6 MFA for admins (`10 §6`) is not implemented** because Auth has no MFA yet. Until it does,
+- **D-A6 MFA for admins (`10 §6`)** was not implemented here because Auth had no MFA; **it is now (`docs/24`)**. The text below is the original decision.
+  Original: not implemented because Auth has no MFA yet. Until it does,
   this console must not be exposed beyond a trusted network. Recorded as the top gap.
 - **D-R1 CSV only.** CSV is what accountants and tax tools ingest, needs no rendering library, and
   is easy to test byte for byte. PDF is deferred.
@@ -169,7 +170,7 @@ A note on running the scripts: `security_check.py` deliberately trips the login 
 
 ### Honest gaps
 
-1. **No MFA for administrators (D-A6).** Auth has no MFA, so an admin account is protected by a
+1. **(Closed by `docs/24`.)** ~~No MFA for administrators (D-A6).~~ Auth had no MFA, so an admin account was protected by a
    password alone. This must be closed before the console is reachable outside a trusted network.
 2. **Freeze latency.** A freeze takes up to 3 seconds to reach each Payment and Wallet replica
    (cache). Event-driven invalidation would make it immediate; not built.

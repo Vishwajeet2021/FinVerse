@@ -16,6 +16,7 @@ Reporting
 """
 import csv, io, json, pathlib, re, subprocess, sys, time, urllib.error, urllib.request, uuid
 import datetime as dt
+from mfa_helper import enroll_and_login
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 H = "http://localhost"
@@ -91,7 +92,8 @@ def make_admin():
     assert tok, "no verification token in auth-service logs"
     call("POST", f"{AUTH}/api/v1/auth/verify-email", {"token": tok})
     psql("auth_db", f"UPDATE users SET role='admin' WHERE email='{email}'")
-    return login(email, PW)
+    # Internal roles must pass MFA (docs/24): the first sign-in is an enrolment.
+    return enroll_and_login(AUTH, email, PW)["token"]
 
 
 def pay(token, src, dst, amount):

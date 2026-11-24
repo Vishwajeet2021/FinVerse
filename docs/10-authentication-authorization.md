@@ -103,7 +103,7 @@ sequenceDiagram
 
 ## 5. MFA and step-up OTP
 
-- **MFA (TOTP, RFC 6238)**: optional-but-encouraged for customers, **mandatory** for `admin`/`super_admin`/`fraud_analyst` roles (§6). Enrollment via `POST /auth/mfa/enable`, returning a QR-encodable secret; verified by a subsequent TOTP code before being marked active.
+- **MFA (TOTP, RFC 6238)**: optional-but-encouraged for customers, **mandatory** for `admin`/`super_admin`/`fraud_analyst` roles (§6). Enrollment returns a QR-encodable secret and is verified by a subsequent TOTP code before being marked active. As built (`docs/24`): first-login enrolment for internal roles via `POST /auth/mfa/enroll/begin|confirm` (authorised by a one-time challenge, because such a role can have no session before it), and opt-in for signed-in users via `POST /auth/mfa/setup/begin|confirm`.
 - **Step-up OTP**: independent of MFA — triggered per-action by the calling service (Payment for high-value transfers per FR-PAY-4, Customer for adding a new beneficiary) via `POST /auth/otp/request` (delivers via email/SMS) then `POST /auth/otp/verify`, returning a short-lived, single-use **step-up token** the original action's request must include. This keeps "is this login legitimate" (MFA) and "is this specific action authorized right now" (OTP) as separate concerns, since a customer might have a fully legitimate, MFA'd session and still need to prove intent for a large transfer.
 
 ## 6. Admin authentication is stricter than customer authentication

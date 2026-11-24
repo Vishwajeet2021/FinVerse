@@ -8,6 +8,7 @@
 4. with Fraud Service stopped, payments fail closed (and recover when it returns)
 """
 import json, re, subprocess, sys, time, urllib.request, urllib.error, uuid, pathlib
+from mfa_helper import enroll_and_login
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 AUTH, PAY, FRAUD, AUDIT = "http://localhost:8081", "http://localhost:8085", "http://localhost:8088", "http://localhost:8087"
@@ -51,7 +52,8 @@ def make_admin():
     call("POST", f"{AUTH}/api/v1/auth/verify-email", {"token": tok})
     sh(*COMPOSE, "exec", "-T", "postgres", "psql", "-U", "finverse", "-d", "auth_db", "-c",
        f"UPDATE users SET role='admin' WHERE email='{email}'")
-    return call("POST", f"{AUTH}/api/v1/auth/login", {"email": email, "password": PW})["data"]["accessToken"]
+    # Internal roles must pass MFA (docs/24): the first sign-in is an enrolment.
+    return enroll_and_login(AUTH, email, PW)["token"]
 
 
 def pay(token, src, dst, amount):

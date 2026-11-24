@@ -9,6 +9,7 @@
 4. end the outage, replay the dead letter, watch it get delivered
 """
 import json, re, subprocess, sys, time, urllib.request, urllib.error, uuid, pathlib
+from mfa_helper import enroll_and_login
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 AUTH, PAY, NOTIF = "http://localhost:8081", "http://localhost:8085", "http://localhost:8086"
@@ -50,7 +51,8 @@ def make_admin():
     call("POST", f"{AUTH}/api/v1/auth/verify-email", {"token": tok})
     sh(*COMPOSE, "exec", "-T", "postgres", "psql", "-U", "finverse", "-d", "auth_db", "-c",
        f"UPDATE users SET role='admin' WHERE email='{email}'")
-    return call("POST", f"{AUTH}/api/v1/auth/login", {"email": email, "password": PW})["data"]["accessToken"]
+    # Internal roles must pass MFA (docs/24): the first sign-in is an enrolment.
+    return enroll_and_login(AUTH, email, PW)["token"]
 
 
 def stats(admin):
