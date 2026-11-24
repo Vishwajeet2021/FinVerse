@@ -16,6 +16,7 @@
 	import { Alert, Button, Card, Logo } from '$lib/components/ui';
 	import { logoutAndClearSession } from '$lib/stores/auth';
 	import { describeError } from '$lib/utils/errors';
+	import { MAX_ACCOUNT_NUMBER_LENGTH, isAdultDob, isValidPan } from '$lib/utils/validation';
 	import { formatMinorAsRupees, rupeesToMinor } from '$lib/utils/currency';
 
 	const queryClient = useQueryClient();
@@ -163,6 +164,14 @@
 			profileError = 'Please fill in your name, date of birth and PAN.';
 			return;
 		}
+		if (!isValidPan(profilePan.trim().toUpperCase())) {
+			profileError = 'PAN must be in the format ABCDE1234F.';
+			return;
+		}
+		if (!isAdultDob(profileDob)) {
+			profileError = 'You must be at least 18 years old to open an account.';
+			return;
+		}
 		creatingProfile = true;
 		try {
 			await createMyProfile({
@@ -237,6 +246,7 @@
 							<input
 								aria-label="Full name"
 								placeholder="Full name"
+								maxlength="120"
 								bind:value={profileName}
 								class="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
 							/>
@@ -433,6 +443,7 @@
 							type="text"
 							bind:value={toAccountNumber}
 							placeholder="destination account number"
+							maxlength={MAX_ACCOUNT_NUMBER_LENGTH}
 							class="rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm transition-shadow focus:ring-2 focus:ring-blue-500/60 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
 						/>
 					</div>

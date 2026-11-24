@@ -1,9 +1,11 @@
 package http
 
 import (
+	"errors"
 	"github.com/finverse/customer-service/internal/domain"
 	"github.com/finverse/shared/apiresponse"
 	"github.com/gin-gonic/gin"
+	"strings"
 )
 
 // writeDomainError maps a domain error to the HTTP status/code/message triple
@@ -12,6 +14,11 @@ import (
 // the *only* errors allowed to reach a handler as a sentinel the handler
 // branches on, per docs/12-coding-standards.md §1.3.
 func writeDomainError(c *gin.Context, err error) {
+	if errors.Is(err, domain.ErrInvalidInput) {
+		// The text after the sentinel is written for customers (see domain/validation.go).
+		apiresponse.BadRequest(c, "INVALID_REQUEST", strings.TrimPrefix(err.Error(), domain.ErrInvalidInput.Error()+": "))
+		return
+	}
 	switch err {
 	case domain.ErrCustomerNotFound:
 		apiresponse.NotFound(c, "CUSTOMER_NOT_FOUND", "Customer profile not found.")

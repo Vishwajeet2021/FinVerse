@@ -2,8 +2,10 @@ package http
 
 import (
 	"crypto/rsa"
+	"github.com/finverse/shared/ratelimit"
 	"time"
 
+	"github.com/finverse/shared/httpsec"
 	sharedlogging "github.com/finverse/shared/logging"
 	"github.com/finverse/shared/telemetry"
 	"github.com/gin-contrib/cors"
@@ -23,6 +25,7 @@ type RouterDeps struct {
 	KeyID          string
 	Logger         *zap.Logger
 	FrontendOrigin string
+	Limiter        *ratelimit.Limiter
 }
 
 // AuthMiddleware is the subset of shared/go/jwtauth.Verifier routes.go needs —
@@ -34,7 +37,11 @@ type AuthMiddleware interface {
 
 func NewRouter(deps RouterDeps) *gin.Engine {
 	r := gin.New()
+	// Without this, a client could pick its own address via X-Forwarded-For and walk around
+	// per-IP limits. Behind a load balancer, list that proxy here instead (Phase 4).
+	_ = r.SetTrustedProxies(nil)
 	r.Use(telemetry.GinMiddleware("auth-service"))
+	r.Use(httpsec.Headers(), httpsec.BodyLimit(httpsec.DefaultBodyLimit))
 	r.Use(sharedlogging.Recovery(deps.Logger))
 	r.Use(sharedlogging.Middleware(deps.Logger))
 	// AllowCredentials is required for the browser to send/receive the
@@ -56,13 +63,14 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 
 	v1 := r.Group("/api/v1/auth")
 	{
-		v1.POST("/register", deps.Handler.Register)
-		v1.POST("/login", deps.Handler.Login)
-		v1.POST("/refresh", deps.Handler.Refresh)
+		lim := deps.Limiter
+		v1.POST("/register", lim.Middleware("register", 20, 10*time.Minute, ratelimit.ByIP, false), deps.Handler.Register)
+		v1.POST("/login", lim.Middleware("login", 30, time.Minute, ratelimit.ByIP, true), deps.Handler.Login)
+		v1.POST("/refresh", lim.Middleware("refresh", 60, time.Minute, ratelimit.ByIP, true), deps.Handler.Refresh)
 		v1.POST("/logout", deps.Handler.Logout)
-		v1.POST("/verify-email", deps.Handler.VerifyEmail)
-		v1.POST("/password-reset/request", deps.Handler.RequestPasswordReset)
-		v1.POST("/password-reset/confirm", deps.Handler.ConfirmPasswordReset)
+		v1.POST("/verify-email", lim.Middleware("verify", 30, 10*time.Minute, ratelimit.ByIP, true), deps.Handler.VerifyEmail)
+		v1.POST("/password-reset/request", lim.Middleware("pwreset-request", 10, 10*time.Minute, ratelimit.ByIP, false), deps.Handler.RequestPasswordReset)
+		v1.POST("/password-reset/confirm", lim.Middleware("pwreset-confirm", 10, 10*time.Minute, ratelimit.ByIP, false), deps.Handler.ConfirmPasswordReset)
 
 		authed := v1.Group("")
 		authed.Use(deps.Verifier.Middleware())

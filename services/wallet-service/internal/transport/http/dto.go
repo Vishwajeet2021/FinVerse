@@ -3,7 +3,7 @@ package http
 import "github.com/finverse/wallet-service/internal/domain"
 
 type provisionWalletRequest struct {
-	FundingAccountID string `json:"fundingAccountId" binding:"required"`
+	FundingAccountID string `json:"fundingAccountId" binding:"required,uuid"`
 }
 
 type walletResponse struct {
@@ -22,10 +22,10 @@ type balanceResponse struct {
 }
 
 type topUpRequest struct {
-	AmountMinor int64 `json:"amountMinor" binding:"required"`
+	AmountMinor int64 `json:"amountMinor" binding:"required,lte=1000000000"`
 }
 
 type transferRequest struct {
-	ToWalletID  string `json:"toWalletId" binding:"required"`
-	AmountMinor int64  `json:"amountMinor" binding:"required"`
+	ToWalletID  string `json:"toWalletId" binding:"required,uuid"`
+	AmountMinor int64  `json:"amountMinor" binding:"required,lte=1000000000"`
 }

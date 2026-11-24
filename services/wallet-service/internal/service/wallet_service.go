@@ -72,7 +72,7 @@ func (s *WalletService) GetBalance(ctx context.Context, walletID string) (*domai
 // later processes the resulting event, so there is exactly one code path
 // responsible for every projection update, never two racing ones.
 func (s *WalletService) TopUp(ctx context.Context, walletID string, amountMinor int64, idempotencyKey string) error {
-	if amountMinor <= 0 {
+	if amountMinor <= 0 || amountMinor > domain.MaxAmountMinor {
 		return domain.ErrInvalidAmount
 	}
 
@@ -114,7 +114,7 @@ func (s *WalletService) TopUp(ctx context.Context, walletID string, amountMinor 
 // docs/07-microservice-specifications.md §6) or a distributed lock; both are
 // documented Phase 3+ hardening items, not built here.
 func (s *WalletService) Transfer(ctx context.Context, fromWalletID, toWalletID string, amountMinor int64, idempotencyKey string) error {
-	if amountMinor <= 0 {
+	if amountMinor <= 0 || amountMinor > domain.MaxAmountMinor {
 		return domain.ErrInvalidAmount
 	}
 	if fromWalletID == toWalletID {

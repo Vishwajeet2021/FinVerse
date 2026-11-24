@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/finverse/customer-service/internal/domain"
@@ -58,6 +59,18 @@ func (s *CustomerService) CreateProfile(ctx context.Context, userID, fullName st
 		return nil, fmt.Errorf("checking existing profile: %w", err)
 	}
 
+	pan = strings.ToUpper(strings.TrimSpace(pan))
+	fullName = strings.TrimSpace(fullName)
+	if err := domain.ValidateFullName(fullName); err != nil {
+		return nil, err
+	}
+	if err := domain.ValidatePAN(pan); err != nil {
+		return nil, err
+	}
+	if err := domain.ValidateDOB(dob, time.Now()); err != nil {
+		return nil, err
+	}
+
 	encrypted, err := s.pan.Encrypt(pan)
 	if err != nil {
 		return nil, fmt.Errorf("encrypting PAN: %w", err)
@@ -103,6 +116,10 @@ func (s *CustomerService) GetProfileByUserID(ctx context.Context, userID string)
 // fields yet (docs/06-domain-driven-design.md §2.2 lists no such field for
 // this phase).
 func (s *CustomerService) UpdateProfile(ctx context.Context, customerID, fullName string) (*domain.Customer, error) {
+	fullName = strings.TrimSpace(fullName)
+	if err := domain.ValidateFullName(fullName); err != nil {
+		return nil, err
+	}
 	customer, err := s.customers.GetByID(ctx, customerID)
 	if err != nil {
 		return nil, err

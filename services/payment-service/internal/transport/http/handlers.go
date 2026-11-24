@@ -4,6 +4,7 @@ package http
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/finverse/payment-service/internal/domain"
@@ -95,6 +96,16 @@ func (h *Handler) InitiatePayment(c *gin.Context) {
 func (h *Handler) GetPayment(c *gin.Context) {
 	payment, err := h.payments.GetPayment(c.Request.Context(), c.Param("id"))
 	if err != nil {
+		writeDomainError(c, err)
+		return
+	}
+	// Only a holder of the paying account may read the payment. A non-holder gets the same
+	// 404 as a missing payment so payment ids cannot be probed (docs/22 D-S3).
+	if err := h.ownership.VerifyOwnership(c.Request.Context(), callerID(c), bearerToken(c), payment.FromAccountID); err != nil {
+		if errors.Is(err, domain.ErrNotAccountHolder) {
+			writeDomainError(c, domain.ErrPaymentNotFound)
+			return
+		}
 		writeDomainError(c, err)
 		return
 	}

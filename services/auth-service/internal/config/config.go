@@ -8,6 +8,7 @@ package config
 import "os"
 
 type Config struct {
+	RedisAddr         string
 	Port              string
 	DatabaseURL       string
 	JWTPrivateKeyPath string
@@ -21,6 +22,7 @@ type Config struct {
 
 func Load() Config {
 	return Config{
+		RedisAddr:         getEnv("REDIS_ADDR", "localhost:6379"),
 		Port:              getEnv("PORT", "8081"),
 		DatabaseURL:       getEnv("AUTH_DATABASE_URL", "postgres://finverse:finverse@localhost:5432/auth_db?sslmode=disable"),
 		JWTPrivateKeyPath: getEnv("AUTH_JWT_PRIVATE_KEY_PATH", "./keys/auth-jwt-private.pem"),

@@ -1,8 +1,10 @@
 package http
 
 import (
+	"github.com/finverse/shared/svcauth"
 	"time"
 
+	"github.com/finverse/shared/httpsec"
 	"github.com/finverse/shared/jwtauth"
 	sharedlogging "github.com/finverse/shared/logging"
 	"github.com/finverse/shared/telemetry"
@@ -13,11 +15,12 @@ import (
 )
 
 type RouterDeps struct {
-	Handler        *Handler
-	Verifier       AuthMiddleware
-	DB             *gorm.DB
-	Logger         *zap.Logger
-	FrontendOrigin string
+	Handler         *Handler
+	Verifier        AuthMiddleware
+	DB              *gorm.DB
+	Logger          *zap.Logger
+	FrontendOrigin  string
+	ServiceVerifier *svcauth.Verifier
 }
 
 type AuthMiddleware interface {
@@ -27,6 +30,7 @@ type AuthMiddleware interface {
 func NewRouter(deps RouterDeps) *gin.Engine {
 	r := gin.New()
 	r.Use(telemetry.GinMiddleware("account-service"))
+	r.Use(httpsec.Headers(), httpsec.BodyLimit(httpsec.DefaultBodyLimit))
 	r.Use(sharedlogging.Recovery(deps.Logger))
 	r.Use(sharedlogging.Middleware(deps.Logger))
 	// AllowCredentials required even though this service sets no cookie
@@ -44,7 +48,7 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 	r.GET("/health", HealthHandler)
 	r.GET("/metrics", telemetry.MetricsHandler())
 	r.GET("/ready", ReadyHandler(deps.DB))
-	r.GET("/internal/accounts/by-number/:accountNumber", deps.Handler.ResolveAccountNumber)
+	r.GET("/internal/accounts/by-number/:accountNumber", deps.ServiceVerifier.Middleware("payment-service"), deps.Handler.ResolveAccountNumber)
 
 	v1 := r.Group("/api/v1/accounts")
 	v1.Use(deps.Verifier.Middleware())

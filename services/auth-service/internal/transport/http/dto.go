@@ -3,9 +3,9 @@ package http
 import "github.com/finverse/auth-service/internal/domain"
 
 type registerRequest struct {
-	Email    string `json:"email" binding:"required,email"`
+	Email    string `json:"email" binding:"required,email,max=254"`
 	Phone    string `json:"phone" binding:"omitempty,e164"`
-	Password string `json:"password" binding:"required"`
+	Password string `json:"password" binding:"required,max=128"`
 }
 
 type userResponse struct {
@@ -29,8 +29,8 @@ func toUserResponse(u *domain.User) userResponse {
 }
 
 type loginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	Email    string `json:"email" binding:"required,email,max=254"`
+	Password string `json:"password" binding:"required,max=128"`
 }
 
 // tokenResponse deliberately omits the refresh token — it travels only as
@@ -44,14 +44,14 @@ type tokenResponse struct {
 }
 
 type verifyEmailRequest struct {
-	Token string `json:"token" binding:"required"`
+	Token string `json:"token" binding:"required,max=256"`
 }
 
 type passwordResetRequestRequest struct {
-	Email string `json:"email" binding:"required,email"`
+	Email string `json:"email" binding:"required,email,max=254"`
 }
 
 type passwordResetConfirmRequest struct {
-	Token       string `json:"token" binding:"required"`
-	NewPassword string `json:"newPassword" binding:"required"`
+	Token       string `json:"token" binding:"required,max=256"`
+	NewPassword string `json:"newPassword" binding:"required,max=128"`
 }

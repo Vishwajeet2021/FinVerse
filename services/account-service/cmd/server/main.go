@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"github.com/finverse/shared/svcauth"
 	"net/http"
 	"os"
 	"os/signal"
@@ -40,6 +41,14 @@ func main() {
 	}
 	defer func() { _ = logger.Sync() }()
 
+	svcKey, err := svcauth.KeyFromEnv()
+	if err != nil {
+		logger.Fatal("loading service auth key", zap.Error(err))
+	}
+	signer := svcauth.NewSigner("account-service", svcKey)
+
+	svcVerifier := svcauth.NewVerifier(svcKey)
+
 	shutdownTracing, err := telemetry.Init(context.Background(), "account-service")
 	if err != nil {
 		logger.Fatal("initializing tracing", zap.Error(err))
@@ -58,7 +67,7 @@ func main() {
 	redisClient := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
 	publisher := eventbus.NewPublisher(redisClient)
 
-	ledgerClient, err := ledger.NewClient(cfg.TransactionServiceGRPCAddr)
+	ledgerClient, err := ledger.NewClient(cfg.TransactionServiceGRPCAddr, signer)
 	if err != nil {
 		logger.Fatal("connecting to transaction-service", zap.Error(err))
 	}
@@ -73,7 +82,7 @@ func main() {
 		logger.Fatal("initializing JWT verifier", zap.Error(err))
 	}
 
-	customerClient := customer.NewClient(cfg.CustomerServiceURL)
+	customerClient := customer.NewClient(cfg.CustomerServiceURL, signer)
 
 	repo := postgres.NewAccountRepository(db)
 	accountService := service.NewAccountService(repo, ledgerClient)
@@ -103,18 +112,20 @@ func main() {
 	}()
 
 	router := transporthttp.NewRouter(transporthttp.RouterDeps{
-		Handler:        handler,
-		Verifier:       verifier,
-		DB:             db,
-		Logger:         logger,
-		FrontendOrigin: cfg.FrontendBaseURL,
+		Handler:         handler,
+		Verifier:        verifier,
+		DB:              db,
+		Logger:          logger,
+		ServiceVerifier: svcVerifier,
+		FrontendOrigin:  cfg.FrontendBaseURL,
 	})
 
 	srv := &http.Server{
-		Addr:         ":" + cfg.Port,
-		Handler:      router,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		Addr:              ":" + cfg.Port,
+		Handler:           router,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
 	}
 
 	go func() {

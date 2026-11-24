@@ -3,6 +3,7 @@ package http
 import (
 	"time"
 
+	"github.com/finverse/shared/httpsec"
 	"github.com/finverse/shared/jwtauth"
 	sharedlogging "github.com/finverse/shared/logging"
 	"github.com/finverse/shared/telemetry"
@@ -28,6 +29,7 @@ type AuthMiddleware interface {
 func NewRouter(deps RouterDeps) *gin.Engine {
 	r := gin.New()
 	r.Use(telemetry.GinMiddleware("notification-service"))
+	r.Use(httpsec.Headers(), httpsec.BodyLimit(httpsec.DefaultBodyLimit))
 	r.Use(sharedlogging.Recovery(deps.Logger))
 	r.Use(sharedlogging.Middleware(deps.Logger))
 	r.Use(cors.New(cors.Config{

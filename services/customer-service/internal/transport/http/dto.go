@@ -9,13 +9,13 @@ import (
 const dateLayout = "2006-01-02"
 
 type createProfileRequest struct {
-	FullName string `json:"fullName" binding:"required"`
-	DOB      string `json:"dob" binding:"required"`
-	PAN      string `json:"pan" binding:"required"`
+	FullName string `json:"fullName" binding:"required,max=480"`
+	DOB      string `json:"dob" binding:"required,max=10"`
+	PAN      string `json:"pan" binding:"required,max=16"`
 }
 
 type updateProfileRequest struct {
-	FullName string `json:"fullName" binding:"required"`
+	FullName string `json:"fullName" binding:"required,max=480"`
 }
 
 // kycReviewRequest is the admin-only decision payload for
@@ -37,14 +37,14 @@ type kycReviewRequest struct {
 // belongs to the same hardening pass that adds real S3 storage
 // (docs/11-security-standards.md §5), tracked as a gap for that later phase.
 type addDocumentRequest struct {
-	DocType       string `json:"docType" binding:"required"`
-	Filename      string `json:"filename" binding:"required"`
-	ContentBase64 string `json:"contentBase64" binding:"required"`
+	DocType       string `json:"docType" binding:"required,max=32"`
+	Filename      string `json:"filename" binding:"required,max=512"`
+	ContentBase64 string `json:"contentBase64" binding:"required,max=7500000"` // 5 MiB of data, base64 encoded
 }
 
 type addBeneficiaryRequest struct {
-	Name       string `json:"name" binding:"required"`
-	AccountRef string `json:"accountRef" binding:"required"`
+	Name       string `json:"name" binding:"required,max=480"`
+	AccountRef string `json:"accountRef" binding:"required,max=64"`
 }
 
 type customerResponse struct {

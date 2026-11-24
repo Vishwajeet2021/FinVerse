@@ -5,6 +5,7 @@ package ledger
 import (
 	"context"
 	"fmt"
+	"github.com/finverse/shared/svcauth"
 	"time"
 
 	"github.com/finverse/account-service/internal/service"
@@ -30,8 +31,8 @@ type Client struct {
 // call after a fresh deploy to time out in local testing. Connect() doesn't
 // block — it just starts the dial in the background so it's warm by the
 // time an actual request needs it.
-func NewClient(addr string) (*Client, error) {
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithStatsHandler(telemetry.GRPCClientStats()))
+func NewClient(addr string, signer *svcauth.Signer) (*Client, error) {
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithChainUnaryInterceptor(signer.UnaryClientInterceptor()), grpc.WithStatsHandler(telemetry.GRPCClientStats()))
 	if err != nil {
 		return nil, fmt.Errorf("dialing transaction-service at %s: %w", addr, err)
 	}

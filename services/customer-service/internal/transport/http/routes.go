@@ -1,8 +1,10 @@
 package http
 
 import (
+	"github.com/finverse/shared/svcauth"
 	"time"
 
+	"github.com/finverse/shared/httpsec"
 	"github.com/finverse/shared/jwtauth"
 	sharedlogging "github.com/finverse/shared/logging"
 	"github.com/finverse/shared/telemetry"
@@ -16,11 +18,12 @@ import (
 // collected in one struct so cmd/server/main.go's composition root stays
 // readable (docs/12-coding-standards.md §1.1: cmd/server is wiring only).
 type RouterDeps struct {
-	Handler        *Handler
-	Verifier       AuthMiddleware
-	DB             *gorm.DB
-	Logger         *zap.Logger
-	FrontendOrigin string
+	Handler         *Handler
+	Verifier        AuthMiddleware
+	DB              *gorm.DB
+	Logger          *zap.Logger
+	FrontendOrigin  string
+	ServiceVerifier *svcauth.Verifier
 }
 
 // AuthMiddleware is the subset of shared/go/jwtauth.Verifier routes.go needs —
@@ -33,6 +36,7 @@ type AuthMiddleware interface {
 func NewRouter(deps RouterDeps) *gin.Engine {
 	r := gin.New()
 	r.Use(telemetry.GinMiddleware("customer-service"))
+	r.Use(httpsec.Headers(), httpsec.BodyLimit(8<<20))
 	r.Use(sharedlogging.Recovery(deps.Logger))
 	r.Use(sharedlogging.Middleware(deps.Logger))
 	// AllowCredentials must be true even though this service never sets a
@@ -57,7 +61,7 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 
 	// Internal, service-to-service only — see GetKYCTierByUserID's comment
 	// in handlers.go. Not routed through the public API Gateway.
-	r.GET("/internal/customers/by-user/:userId/kyc-tier", deps.Handler.GetKYCTierByUserID)
+	r.GET("/internal/customers/by-user/:userId/kyc-tier", deps.ServiceVerifier.Middleware("account-service"), deps.Handler.GetKYCTierByUserID)
 
 	v1 := r.Group("/api/v1/customers")
 	v1.Use(deps.Verifier.Middleware())

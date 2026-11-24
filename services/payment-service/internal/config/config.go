@@ -13,6 +13,7 @@ type Config struct {
 	AccountServiceURL          string
 	FraudServiceGRPCAddr       string
 	FraudFailOpen              bool
+	PaymentsPerMinute          int64
 	RailFailureRate            float64
 	NeftBatchSeconds           int
 	AuthJWKSURL                string
@@ -32,6 +33,7 @@ func Load() Config {
 		AccountServiceURL:          getEnv("ACCOUNT_SERVICE_URL", "http://localhost:8083"),
 		FraudServiceGRPCAddr:       getEnv("FRAUD_SERVICE_GRPC_ADDR", "localhost:9092"),
 		FraudFailOpen:              getEnv("FRAUD_FAIL_OPEN", "false") == "true",
+		PaymentsPerMinute:          int64(getEnvFloat("RATE_LIMIT_PAYMENTS_PER_MIN", 120)),
 		RailFailureRate:            getEnvFloat("RAIL_FAILURE_RATE", 0),
 		NeftBatchSeconds:           int(getEnvFloat("NEFT_BATCH_SECONDS", 30)),
 		AuthJWKSURL:                getEnv("AUTH_JWKS_URL", "http://localhost:8081/.well-known/jwks.json"),

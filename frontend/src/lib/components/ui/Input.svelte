@@ -10,6 +10,8 @@
 		required?: boolean;
 		autocomplete?: Autocomplete;
 		error?: string | null;
+		// Defaults mirror the server's limits so over-long input is stopped before a round trip.
+		maxlength?: number;
 	}
 
 	let {
@@ -20,7 +22,8 @@
 		placeholder = '',
 		required = false,
 		autocomplete,
-		error = null
+		error = null,
+		maxlength = type === 'password' ? 128 : 254
 	}: Props = $props();
 </script>
 
@@ -32,6 +35,7 @@
 		{placeholder}
 		{required}
 		{autocomplete}
+		{maxlength}
 		bind:value
 		aria-invalid={error ? 'true' : undefined}
 		aria-describedby={error ? `${id}-error` : undefined}

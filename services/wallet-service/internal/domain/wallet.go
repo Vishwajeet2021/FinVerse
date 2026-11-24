@@ -65,3 +65,7 @@ var (
 	ErrSameWallet          = errors.New("cannot transfer a wallet to itself")
 	ErrInvalidAmount       = errors.New("amount must be a positive number of minor units")
 )
+
+// MaxAmountMinor is the largest single amount (INR 1 crore) accepted by any money-moving path.
+// It bounds arithmetic and sits far above retail limits, which Fraud enforces per rail.
+const MaxAmountMinor int64 = 1_000_000_000

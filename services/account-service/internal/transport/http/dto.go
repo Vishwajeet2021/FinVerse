@@ -3,7 +3,7 @@ package http
 import "github.com/finverse/account-service/internal/service"
 
 type openAccountRequest struct {
-	ProductType string `json:"productType" binding:"required"`
+	ProductType string `json:"productType" binding:"required,max=16"`
 }
 
 type accountResponse struct {

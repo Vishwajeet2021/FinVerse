@@ -82,7 +82,7 @@ func (s *PaymentService) InitiatePaymentOnRail(ctx context.Context, rail domain.
 		return nil, fmt.Errorf("checking idempotency key: %w", err)
 	}
 
-	if amountMinor <= 0 {
+	if amountMinor <= 0 || amountMinor > domain.MaxAmountMinor {
 		return nil, domain.ErrInvalidAmount
 	}
 	if err := s.rails.Validate(rail, amountMinor); err != nil {
