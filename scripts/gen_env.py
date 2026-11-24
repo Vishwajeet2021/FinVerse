@@ -28,6 +28,7 @@ def main() -> None:
     lines += [
         f"SERVICE_AUTH_KEY={secrets.token_hex(32)}",
         f"CUSTOMER_PAN_ENCRYPTION_KEY={base64.b64encode(secrets.token_bytes(32)).decode()}",
+        f"AUTH_MFA_ENCRYPTION_KEY={base64.b64encode(secrets.token_bytes(32)).decode()}",
         f"GRAFANA_ADMIN_PASSWORD={secrets.token_urlsafe(16)}",
     ]
     TARGET.write_text("\n".join(lines) + "\n", encoding="utf-8")

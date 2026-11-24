@@ -5,6 +5,7 @@
 package http
 
 import (
+	"github.com/finverse/auth-service/internal/domain"
 	"github.com/finverse/auth-service/internal/service"
 	"github.com/finverse/shared/apiresponse"
 	"github.com/finverse/shared/jwtauth"
@@ -67,14 +68,115 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	pair, err := h.auth.Login(c.Request.Context(), req.Email, req.Password)
+	res, err := h.auth.Login(c.Request.Context(), req.Email, req.Password)
 	if err != nil {
 		writeDomainError(c, err)
 		return
 	}
 
+	if res.Challenge != nil {
+		// No cookie and no access token: the sign-in is not finished.
+		noStore(c)
+		apiresponse.OK(c, loginResponse{
+			MFARequired:           res.Challenge.Purpose == domain.ChallengeLogin,
+			MFAEnrollmentRequired: res.Challenge.Purpose == domain.ChallengeEnroll,
+			ChallengeToken:        res.Challenge.Token,
+		})
+		return
+	}
+
+	setRefreshCookie(c, h.cookie, res.Tokens.RefreshToken, res.Tokens.RefreshTokenExpiresAt)
+	apiresponse.OK(c, loginResponse{AccessToken: res.Tokens.AccessToken, TokenType: "Bearer"})
+}
+
+// noStore keeps responses that carry a secret out of any cache.
+func noStore(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	c.Header("Pragma", "no-cache")
+}
+
+// MFAVerify completes a sign-in with a TOTP or recovery code.
+func (h *Handler) MFAVerify(c *gin.Context) {
+	var req mfaVerifyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apiresponse.BadRequest(c, "INVALID_REQUEST", "Please check your input and try again.")
+		return
+	}
+	pair, _, err := h.auth.CompleteLogin(c.Request.Context(), req.ChallengeToken, req.Code)
+	if err != nil {
+		writeDomainError(c, err)
+		return
+	}
 	setRefreshCookie(c, h.cookie, pair.RefreshToken, pair.RefreshTokenExpiresAt)
 	apiresponse.OK(c, tokenResponse{AccessToken: pair.AccessToken, TokenType: "Bearer"})
+}
+
+// MFAEnrollBegin starts first-login enrolment for a role that requires MFA.
+func (h *Handler) MFAEnrollBegin(c *gin.Context) {
+	var req mfaChallengeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apiresponse.BadRequest(c, "INVALID_REQUEST", "Please check your input and try again.")
+		return
+	}
+	enr, err := h.auth.BeginLoginEnrollment(c.Request.Context(), req.ChallengeToken)
+	if err != nil {
+		writeDomainError(c, err)
+		return
+	}
+	noStore(c)
+	apiresponse.OK(c, enrollmentResponse{Secret: enr.Secret, OtpauthURI: enr.URI})
+}
+
+// MFAEnrollConfirm finishes enrolment and, with it, the sign-in. The recovery codes in the
+// response are shown once.
+func (h *Handler) MFAEnrollConfirm(c *gin.Context) {
+	var req mfaEnrollConfirmRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apiresponse.BadRequest(c, "INVALID_REQUEST", "Please check your input and try again.")
+		return
+	}
+	out, err := h.auth.ConfirmLoginEnrollment(c.Request.Context(), req.ChallengeToken, req.Code)
+	if err != nil {
+		writeDomainError(c, err)
+		return
+	}
+	setRefreshCookie(c, h.cookie, out.Tokens.RefreshToken, out.Tokens.RefreshTokenExpiresAt)
+	noStore(c)
+	apiresponse.OK(c, enrollmentSessionResponse{AccessToken: out.Tokens.AccessToken, TokenType: "Bearer", RecoveryCodes: out.RecoveryCodes})
+}
+
+// MFASetupBegin lets a signed-in user set up a second factor; it asks for the password again.
+func (h *Handler) MFASetupBegin(c *gin.Context) {
+	var req mfaSetupBeginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apiresponse.BadRequest(c, "INVALID_REQUEST", "Please check your input and try again.")
+		return
+	}
+	claims := jwtauth.ClaimsFromContext(c)
+	enr, err := h.auth.BeginSelfEnrollment(c.Request.Context(), claims.Subject, req.Password)
+	if err != nil {
+		writeDomainError(c, err)
+		return
+	}
+	noStore(c)
+	apiresponse.OK(c, enrollmentResponse{Secret: enr.Secret, OtpauthURI: enr.URI})
+}
+
+// MFASetupConfirm completes MFASetupBegin and returns the recovery codes once.
+func (h *Handler) MFASetupConfirm(c *gin.Context) {
+	var req mfaSetupConfirmRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		apiresponse.BadRequest(c, "INVALID_REQUEST", "Please check your input and try again.")
+		return
+	}
+	claims := jwtauth.ClaimsFromContext(c)
+	codes, err := h.auth.ConfirmSelfEnrollment(c.Request.Context(), claims.Subject, req.Code)
+	if err != nil {
+		writeDomainError(c, err)
+		return
+	}
+	noStore(c)
+	apiresponse.OK(c, recoveryCodesResponse{RecoveryCodes: codes})
 }
 
 // Refresh implements FR-AUTH-6. The refresh token comes from the HttpOnly

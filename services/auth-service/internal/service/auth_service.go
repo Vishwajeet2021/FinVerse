@@ -6,8 +6,10 @@ import (
 	"time"
 
 	"github.com/finverse/auth-service/internal/domain"
+	"github.com/finverse/auth-service/internal/mfa"
 	"github.com/finverse/shared/jwtauth"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 // AuthService implements the FR-AUTH-* requirements in
@@ -20,6 +22,10 @@ type AuthService struct {
 	passwordResets     VerificationTokenRepository
 	signer             *jwtauth.Signer
 	mailer             Mailer
+	mfaRepo            MFARepository
+	mfaCipher          *mfa.Cipher
+	log                *zap.Logger
+	now                func() time.Time
 }
 
 func NewAuthService(
@@ -29,6 +35,8 @@ func NewAuthService(
 	passwordResets VerificationTokenRepository,
 	signer *jwtauth.Signer,
 	mailer Mailer,
+	mfaRepo MFARepository,
+	mfaCipher *mfa.Cipher,
 ) *AuthService {
 	return &AuthService{
 		users:              users,
@@ -37,6 +45,18 @@ func NewAuthService(
 		passwordResets:     passwordResets,
 		signer:             signer,
 		mailer:             mailer,
+		mfaRepo:            mfaRepo,
+		mfaCipher:          mfaCipher,
+		log:                zap.NewNop(),
+		now:                time.Now,
+	}
+}
+
+// SetLogger attaches the logger used for security events (second-factor outcomes). It is a
+// setter rather than a constructor argument so tests, which do not care, keep a no-op logger.
+func (s *AuthService) SetLogger(l *zap.Logger) {
+	if l != nil {
+		s.log = l
 	}
 }
 

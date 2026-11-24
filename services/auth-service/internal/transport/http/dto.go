@@ -43,6 +43,57 @@ type tokenResponse struct {
 	TokenType   string `json:"tokenType"`
 }
 
+// loginResponse is either a session (accessToken) or a pending second step (mfaRequired /
+// mfaEnrollmentRequired plus a challengeToken). The challenge token proves only that the password
+// step passed: it opens no API and expires in minutes.
+type loginResponse struct {
+	AccessToken           string `json:"accessToken,omitempty"`
+	TokenType             string `json:"tokenType,omitempty"`
+	MFARequired           bool   `json:"mfaRequired,omitempty"`
+	MFAEnrollmentRequired bool   `json:"mfaEnrollmentRequired,omitempty"`
+	ChallengeToken        string `json:"challengeToken,omitempty"`
+}
+
+type mfaVerifyRequest struct {
+	ChallengeToken string `json:"challengeToken" binding:"required,max=256"`
+	// Six digits from the authenticator app, or a recovery code (XXXXX-XXXXX).
+	Code string `json:"code" binding:"required,min=6,max=16"`
+}
+
+type mfaChallengeRequest struct {
+	ChallengeToken string `json:"challengeToken" binding:"required,max=256"`
+}
+
+type mfaEnrollConfirmRequest struct {
+	ChallengeToken string `json:"challengeToken" binding:"required,max=256"`
+	Code           string `json:"code" binding:"required,min=6,max=16"`
+}
+
+type mfaSetupBeginRequest struct {
+	Password string `json:"password" binding:"required,max=128"`
+}
+
+type mfaSetupConfirmRequest struct {
+	Code string `json:"code" binding:"required,min=6,max=16"`
+}
+
+type enrollmentResponse struct {
+	Secret     string `json:"secret"`
+	OtpauthURI string `json:"otpauthUri"`
+}
+
+// recoveryCodesResponse is the only time the recovery codes are ever shown.
+type recoveryCodesResponse struct {
+	RecoveryCodes []string `json:"recoveryCodes"`
+}
+
+// enrollmentSessionResponse completes a sign-in that began with a required enrolment.
+type enrollmentSessionResponse struct {
+	AccessToken   string   `json:"accessToken"`
+	TokenType     string   `json:"tokenType"`
+	RecoveryCodes []string `json:"recoveryCodes"`
+}
+
 type verifyEmailRequest struct {
 	Token string `json:"token" binding:"required,max=256"`
 }

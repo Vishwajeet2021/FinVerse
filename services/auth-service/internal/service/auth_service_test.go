@@ -26,7 +26,8 @@ func newTestAuthService(t *testing.T) (*AuthService, *fakeUserRepo, *fakeRefresh
 	emailVerifications := newFakeVerificationTokenRepo()
 	passwordResets := newFakeVerificationTokenRepo()
 	mailer := &fakeMailer{}
-	svc := NewAuthService(users, refreshTokens, emailVerifications, passwordResets, testSigner(t), mailer)
+	svc := NewAuthService(users, refreshTokens, emailVerifications, passwordResets, testSigner(t), mailer,
+		newFakeMFARepo(users), testCipher(t))
 	return svc, users, refreshTokens, mailer
 }
 
@@ -115,12 +116,15 @@ func TestLogin_Success(t *testing.T) {
 		t.Fatalf("registering: %v", err)
 	}
 
-	pair, err := svc.Login(ctx, email, password)
+	res, err := svc.Login(ctx, email, password)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if pair.AccessToken == "" || pair.RefreshToken == "" {
-		t.Fatalf("expected non-empty token pair, got %+v", pair)
+	if res.Challenge != nil || res.Tokens == nil {
+		t.Fatalf("a customer without MFA must get tokens directly, got %+v", res)
+	}
+	if res.Tokens.AccessToken == "" || res.Tokens.RefreshToken == "" {
+		t.Fatalf("expected non-empty token pair, got %+v", res.Tokens)
 	}
 }
 
@@ -133,10 +137,11 @@ func TestRefresh_ReuseOfRevokedTokenKillsWholeFamily(t *testing.T) {
 	if _, err := svc.Register(ctx, email, "", password); err != nil {
 		t.Fatalf("registering: %v", err)
 	}
-	firstPair, err := svc.Login(ctx, email, password)
+	firstLogin, err := svc.Login(ctx, email, password)
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
+	firstPair := firstLogin.Tokens
 
 	// Legitimate rotation: refresh once, the old token is now revoked.
 	secondPair, err := svc.Refresh(ctx, firstPair.RefreshToken)

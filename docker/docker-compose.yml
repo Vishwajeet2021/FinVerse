@@ -66,6 +66,7 @@ services:
       AUTH_JWT_KID: auth-dev-key-1
       AUTH_JWT_ISSUER: https://auth.finverse.local
       AUTH_JWT_AUDIENCE: finverse-api
+      AUTH_MFA_ENCRYPTION_KEY: ${AUTH_MFA_ENCRYPTION_KEY:?missing in docker/.env}
       FRONTEND_BASE_URL: http://localhost:5173
       LOG_LEVEL: debug
       ENVIRONMENT: development

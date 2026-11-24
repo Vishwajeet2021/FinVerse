@@ -45,7 +45,20 @@ type User struct {
 	LockedUntil      *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+
+	// Second factor (docs/24-admin-mfa.md). These are loaded with the user but never written by
+	// UserRepository.Update: only the MFA repository changes them, with conditional statements, so
+	// a stale copy of this struct saved elsewhere cannot roll back replay protection.
+	MFAEnabled    bool
+	MFASecretEnc  string // encrypted; empty when no enrolment has begun
+	MFALastStep   int64
+	MFAEnrolledAt *time.Time
 }
+
+// RequiresMFA reports whether this role may not hold a session without a second factor:
+// every internal role. Customers may enrol but are not forced to
+// (docs/10-authentication-authorization.md §5, §6).
+func (r Role) RequiresMFA() bool { return r != RoleCustomer }
 
 // MaxFailedLoginAttempts and LockoutDuration implement FR-AUTH-9.
 const (
@@ -71,4 +84,11 @@ var (
 	ErrEmailNotVerified       = errors.New("email address is not verified")
 	ErrTokenInvalidOrExpired  = errors.New("token is invalid or has expired")
 	ErrTokenAlreadyUsed       = errors.New("token has already been used")
+
+	// Second factor.
+	ErrMFACodeInvalid      = errors.New("the verification code is not valid")
+	ErrMFAChallengeInvalid = errors.New("the sign-in step has expired or was already used")
+	ErrMFAAlreadyEnabled   = errors.New("two-step verification is already set up")
+	ErrMFANotStarted       = errors.New("two-step verification setup has not been started")
+	ErrMFARequired         = errors.New("this account requires two-step verification")
 )

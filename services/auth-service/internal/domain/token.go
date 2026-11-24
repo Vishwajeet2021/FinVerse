@@ -15,8 +15,11 @@ type RefreshToken struct {
 	TokenHash string
 	FamilyID  string
 	Revoked   bool
-	ExpiresAt time.Time
-	CreatedAt time.Time
+	// MFAVerified records that the session this token belongs to passed the second factor. It is
+	// copied to every token in the rotation family so a refresh cannot downgrade the session.
+	MFAVerified bool
+	ExpiresAt   time.Time
+	CreatedAt   time.Time
 }
 
 // ErrRefreshTokenReused signals a revoked token was presented again — the

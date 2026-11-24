@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"github.com/finverse/auth-service/internal/domain"
 )
@@ -24,6 +25,20 @@ type RefreshTokenRepository interface {
 	Revoke(ctx context.Context, id string) error
 	RevokeFamily(ctx context.Context, familyID string) error
 	RevokeAllForUser(ctx context.Context, userID string) error
+}
+
+// MFARepository is implemented by internal/repository/postgres. Every method is a single
+// conditional write, so the guarantees (a code is used once, a step is accepted once, a
+// challenge is consumed once, a guess is counted once) hold under concurrent requests.
+type MFARepository interface {
+	SetPendingSecret(ctx context.Context, userID, secretEnc string) error
+	Activate(ctx context.Context, userID string, acceptedStep int64, recoveryHashes []string, now time.Time) error
+	AdvanceStep(ctx context.Context, userID string, step int64) (bool, error)
+	ConsumeRecoveryCode(ctx context.Context, userID, codeHash string) (bool, error)
+	CreateChallenge(ctx context.Context, c *domain.MFAChallenge) error
+	GetChallengeByHash(ctx context.Context, tokenHash string) (*domain.MFAChallenge, error)
+	RecordChallengeAttempt(ctx context.Context, id string) (int, error)
+	ConsumeChallenge(ctx context.Context, id string) (bool, error)
 }
 
 // VerificationTokenRepository is implemented twice by internal/repository/postgres

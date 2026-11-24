@@ -33,6 +33,16 @@ func writeDomainError(c *gin.Context, err error) {
 		apiresponse.Conflict(c, "TOKEN_ALREADY_USED", "This link or token has already been used.")
 	case domain.ErrRefreshTokenReused:
 		apiresponse.Unauthorized(c, "SESSION_REVOKED", "Your session was revoked for security reasons. Please log in again.")
+	case domain.ErrMFACodeInvalid:
+		apiresponse.Unauthorized(c, "MFA_CODE_INVALID", "That code is not right. Check your authenticator app and try again.")
+	case domain.ErrMFAChallengeInvalid:
+		apiresponse.Unauthorized(c, "MFA_CHALLENGE_INVALID", "This sign-in step has expired. Please log in again.")
+	case domain.ErrMFARequired:
+		apiresponse.Unauthorized(c, "MFA_REQUIRED", "Two-step verification is required for this account. Please log in again.")
+	case domain.ErrMFAAlreadyEnabled:
+		apiresponse.Conflict(c, "MFA_ALREADY_ENABLED", "Two-step verification is already set up for this account.")
+	case domain.ErrMFANotStarted:
+		apiresponse.Conflict(c, "MFA_NOT_STARTED", "Start two-step verification setup before confirming a code.")
 	case domain.ErrUserNotFound:
 		apiresponse.NotFound(c, "USER_NOT_FOUND", "User not found.")
 	default:

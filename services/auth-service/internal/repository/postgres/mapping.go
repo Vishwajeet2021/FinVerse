@@ -48,30 +48,36 @@ func fromUserModel(m *userModel) *domain.User {
 		LockedUntil:      m.LockedUntil,
 		CreatedAt:        m.CreatedAt,
 		UpdatedAt:        m.UpdatedAt,
+		MFAEnabled:       m.MFAEnabled,
+		MFASecretEnc:     nilToEmpty(m.MFASecretEnc),
+		MFALastStep:      m.MFALastStep,
+		MFAEnrolledAt:    m.MFAEnrolledAt,
 	}
 }
 
 func toRefreshTokenModel(t *domain.RefreshToken) *refreshTokenModel {
 	return &refreshTokenModel{
-		ID:        t.ID,
-		UserID:    t.UserID,
-		TokenHash: t.TokenHash,
-		FamilyID:  t.FamilyID,
-		Revoked:   t.Revoked,
-		ExpiresAt: t.ExpiresAt,
-		CreatedAt: t.CreatedAt,
+		ID:          t.ID,
+		UserID:      t.UserID,
+		TokenHash:   t.TokenHash,
+		FamilyID:    t.FamilyID,
+		Revoked:     t.Revoked,
+		MFAVerified: t.MFAVerified,
+		ExpiresAt:   t.ExpiresAt,
+		CreatedAt:   t.CreatedAt,
 	}
 }
 
 func fromRefreshTokenModel(m *refreshTokenModel) *domain.RefreshToken {
 	return &domain.RefreshToken{
-		ID:        m.ID,
-		UserID:    m.UserID,
-		TokenHash: m.TokenHash,
-		FamilyID:  m.FamilyID,
-		Revoked:   m.Revoked,
-		ExpiresAt: m.ExpiresAt,
-		CreatedAt: m.CreatedAt,
+		ID:          m.ID,
+		UserID:      m.UserID,
+		TokenHash:   m.TokenHash,
+		FamilyID:    m.FamilyID,
+		Revoked:     m.Revoked,
+		MFAVerified: m.MFAVerified,
+		ExpiresAt:   m.ExpiresAt,
+		CreatedAt:   m.CreatedAt,
 	}
 }
 

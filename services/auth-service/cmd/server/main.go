@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/finverse/auth-service/internal/config"
+	"github.com/finverse/auth-service/internal/mfa"
 	"github.com/finverse/auth-service/internal/migrate"
 	"github.com/finverse/auth-service/internal/repository/postgres"
 	"github.com/finverse/auth-service/internal/service"
@@ -71,7 +72,16 @@ func main() {
 	passwordResetRepo := postgres.NewVerificationTokenRepository(db, "password_reset_tokens")
 	mailer := service.NewConsoleMailer(logger, cfg.FrontendBaseURL)
 
-	authService := service.NewAuthService(userRepo, refreshTokenRepo, emailVerificationRepo, passwordResetRepo, signer, mailer)
+	mfaCipher, err := mfa.NewCipher(cfg.MFAEncryptionKey)
+	if err != nil {
+		// Refusing to start is deliberate: without the key an administrator could not be enrolled,
+		// and falling back to "no MFA" would silently remove the control.
+		logger.Fatal("AUTH_MFA_ENCRYPTION_KEY is missing or invalid (need 32 bytes, base64)", zap.Error(err))
+	}
+	mfaRepo := postgres.NewMFARepository(db)
+
+	authService := service.NewAuthService(userRepo, refreshTokenRepo, emailVerificationRepo, passwordResetRepo, signer, mailer, mfaRepo, mfaCipher)
+	authService.SetLogger(logger)
 	handler := transporthttp.NewHandler(authService, transporthttp.CookieConfig{Secure: cfg.CookieSecure()})
 
 	redisClient := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})

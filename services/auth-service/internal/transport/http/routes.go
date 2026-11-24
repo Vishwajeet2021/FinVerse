@@ -72,9 +72,17 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 		v1.POST("/password-reset/request", lim.Middleware("pwreset-request", 10, 10*time.Minute, ratelimit.ByIP, false), deps.Handler.RequestPasswordReset)
 		v1.POST("/password-reset/confirm", lim.Middleware("pwreset-confirm", 10, 10*time.Minute, ratelimit.ByIP, false), deps.Handler.ConfirmPasswordReset)
 
+		// Second step of sign-in. Throttled per IP and fail-closed, on top of the per-challenge
+		// attempt limit and the account lockout, which are what actually bound guessing.
+		v1.POST("/mfa/verify", lim.Middleware("mfa-verify", 30, time.Minute, ratelimit.ByIP, true), deps.Handler.MFAVerify)
+		v1.POST("/mfa/enroll/begin", lim.Middleware("mfa-enroll", 30, time.Minute, ratelimit.ByIP, true), deps.Handler.MFAEnrollBegin)
+		v1.POST("/mfa/enroll/confirm", lim.Middleware("mfa-enroll", 30, time.Minute, ratelimit.ByIP, true), deps.Handler.MFAEnrollConfirm)
+
 		authed := v1.Group("")
 		authed.Use(deps.Verifier.Middleware())
 		authed.POST("/logout-all", deps.Handler.LogoutAll)
+		authed.POST("/mfa/setup/begin", lim.Middleware("mfa-setup", 10, 10*time.Minute, ratelimit.ByIP, true), deps.Handler.MFASetupBegin)
+		authed.POST("/mfa/setup/confirm", lim.Middleware("mfa-setup", 10, 10*time.Minute, ratelimit.ByIP, true), deps.Handler.MFASetupConfirm)
 	}
 
 	return r

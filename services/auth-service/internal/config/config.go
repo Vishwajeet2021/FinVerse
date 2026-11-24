@@ -18,6 +18,9 @@ type Config struct {
 	FrontendBaseURL   string
 	LogLevel          string
 	Environment       string
+	// MFAEncryptionKey is a base64-encoded 32-byte key that encrypts TOTP secrets at rest. It has
+	// no default on purpose: a baked-in key would make the encryption decorative.
+	MFAEncryptionKey string
 }
 
 func Load() Config {
@@ -32,6 +35,7 @@ func Load() Config {
 		FrontendBaseURL:   getEnv("FRONTEND_BASE_URL", "http://localhost:5173"),
 		LogLevel:          getEnv("LOG_LEVEL", "info"),
 		Environment:       getEnv("ENVIRONMENT", "development"),
+		MFAEncryptionKey:  os.Getenv("AUTH_MFA_ENCRYPTION_KEY"),
 	}
 }
 
